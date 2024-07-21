@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model charger_vor_reason {
+  id            Int       @id @default(autoincrement())
+  charger_id    Int?
+  date_reported DateTime? @db.Date
+  vor_reason    String
+  chargers      chargers? @relation(fields: [charger_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model chargers {
+  id                 Int                  @id @default(autoincrement())
+  charger_num        String
+  charger_loc        String
+  isvor              Boolean
+  type               String
+  charger_vor_reason charger_vor_reason[]
+}
+
+model vehicle_vor_reason {
+  id            Int       @id @default(autoincrement())
+  vec_id        Int?
+  date_reported DateTime? @db.Date
+  vor_reason    String
+  vehicles      vehicles? @relation(fields: [vec_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model vehicles {
+  id                 Int                  @id @default(autoincrement())
+  vec_num            Int
+  isvor              Boolean
+  driven             Boolean
+  type               String
+  vehicle_vor_reason vehicle_vor_reason[]
+}

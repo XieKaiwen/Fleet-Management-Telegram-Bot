@@ -1,0 +1,136 @@
+{
+  "charger_name": [
+    "645-2005L",
+    "737-2005A",
+    "639-2005L",
+    "647-2005L",
+    "644-2005L",
+    "502-2007B",
+    "504-2007B",
+    "503-2007B",
+    "505-2007B",
+    "641-2005L",
+    "646-2005L",
+    "642-2005L",
+    "638-2005L",
+    "640-2005A",
+    "736-2005A",
+    "70801",
+    "70906",
+    "70810",
+    "70704",
+    "70809",
+    "70807",
+    "70501",
+    "70808",
+    "70802"
+  ],
+  "isVOR": [
+    false,
+    false,
+    true,
+    false,
+    false,
+    false,
+    true,
+    false,
+    false,
+    true,
+    false,
+    true,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+  ],
+  "VOR_reason": {
+    "504-2007B": [
+      {
+        "date": null,
+        "reason": "Hydrogen Probe and Temperature Probe send for Calibration (ETR: 160724)"
+      }
+    ],
+    "639-2005L": [
+      {
+        "date": null,
+        "reason": "Hydrogen Probe and Temperature Probe send for Calibration (ETR: 160724)"
+      }
+    ],
+    "641-2005L": [
+      {
+        "date": null,
+        "reason": "Hydrogen Probe and Temperature Probe send for Calibration (ETR: 160724)"
+      }
+    ],
+    "642-2005L": [
+      {
+        "date": "2024-03-08",
+        "reason": "Unserviceable due to battery leak"
+      }
+    ]
+  },
+  "location":[
+    "C1CP",
+    "C1CP",
+    "C2CP",
+    "C2CP",
+    "C2CP",
+    "C2CP",
+    "C3CP",
+    "C3CP",
+    "C3CP",
+    "C3CP",
+    "C4PE",
+    "C4PE",
+    "C4CP",
+    "C4CP",
+    "C4CP",
+    "C4CP",
+    "C1CP",
+    "C1CP",
+    "C2CP",
+    "C4PE",
+    "C3CP",
+    "C3CP",
+    "C2CP",
+    "C4CP",
+    "C4CP"
+  ],
+  "type":
+  [
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "ESL CHARGER",
+    "EFL CHARGER",
+    "EFL CHARGER",
+    "EFL CHARGER",
+    "EFL CHARGER",
+    "EFL CHARGER",
+    "EFL CHARGER",
+    "EFL CHARGER",
+    "EFL CHARGER",
+    "EFL CHARGER"
+  ]
+}

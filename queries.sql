@@ -1,0 +1,48 @@
+CREATE TABLE vehicles (
+    id SERIAL PRIMARY KEY,
+    vec_num INT NOT NULL,
+    isVOR BOOLEAN NOT NULL,
+    driven BOOLEAN NOT NULL
+);
+
+CREATE TABLE vehicle_VOR_reason (
+    id SERIAL PRIMARY KEY,
+    vec_id INT REFERENCES vehicles(id) ON DELETE CASCADE,
+    date_reported DATE NOT NULL,
+    VOR_reason TEXT NOT NULL
+);
+
+
+CREATE TABLE chargers (
+    id SERIAL PRIMARY KEY,
+    charger_num TEXT NOT NULL,
+    charger_loc TEXT NOT NULL,
+    isVOR BOOLEAN NOT NULL
+);
+
+CREATE TABLE charger_VOR_reason (
+    id SERIAL PRIMARY KEY,
+    charger_id INT REFERENCES chargers(id) ON DELETE CASCADE,
+    date_reported DATE NOT NULL,
+    VOR_reason TEXT NOT NULL
+);
+
+UPDATE vehicles 
+SET type = CASE
+WHEN vec_num BETWEEN 
+46083 AND 46092 THEN 'GPT'    
+WHEN vec_num BETWEEN 
+50997 AND 51000 THEN 'EFL CAT A'
+WHEN vec_num BETWEEN 
+51001 AND 51004 THEN 'EFL CAT C'
+WHEN vec_num BETWEEN 
+51005 AND 51010 THEN '2.5 TON DFL'
+WHEN vec_num BETWEEN 
+51011 AND 51012 THEN '5 TON DFL'
+WHEN vec_num BETWEEN 
+51090 AND 51093 THEN 'MOFFET'
+WHEN vec_num BETWEEN 
+51086 AND 51089 THEN 'MVLP'
+WHEN vec_num BETWEEN 
+50701 AND 50712 THEN 'ESL'
+END;
