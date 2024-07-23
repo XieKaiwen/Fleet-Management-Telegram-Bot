@@ -5,8 +5,14 @@ import { Telegraf } from "telegraf";
 import { config } from "dotenv";
 import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
-import { format } from "date-fns";
-import { getCurrentDateInSingapore, sendServState, sendWPT } from "./helper_functions.js";
+import {
+  botSendMessage,
+  restartCtx,
+  sendServState,
+  sendWPT,
+} from "./helper_functions.js";
+import ngrok from "ngrok";
+import { isBoxedPrimitive } from "util/types";
 
 config();
 // Using Prisma ORM
@@ -15,8 +21,6 @@ const prisma = new PrismaClient();
 // Setup __dirname equivalent in ES module scope
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// Initialize dotenv
 
 // Initialize Express
 const expressApp = express();
@@ -27,7 +31,36 @@ expressApp.use(express.static("static"));
 expressApp.use(express.json());
 
 // Initialize the bot
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(process.env.BOT_TOKEN, {
+  telegram: { webhookReply: false },
+});
+const sessionStore = {};
+function botSessionMiddleware(ctx, next) {
+  const userId = ctx.from && ctx.from.id;
+  const chatId = ctx.chat && ctx.chat.id;
+
+  // Create a unique key for each session (based on user and chat ID)
+  const sessionId = `${chatId}:${userId}`;
+
+  // Retrieve session data or initialize it if it doesn't exist
+  if (!sessionStore[sessionId]) {
+    sessionStore[sessionId] = {
+      state: "idle",
+      cur_command: null,
+      cur_step: null,
+      input: {},
+    }; // Initialize a new session object
+  }
+
+  // Attach session data to the context
+  ctx.session = sessionStore[sessionId];
+  console.log("CTX session: ", ctx.session);
+  ctx.message.text = ctx.message.text.trim();
+  console.log("CTX message: ", ctx.message.text);
+  // Proceed with the middleware chain
+  return next();
+}
+bot.use(botSessionMiddleware);
 
 const vehicle_count = {
   GPT: {
@@ -85,273 +118,317 @@ console.log(vehicleTypes);
 
 const chargerTypes = ["ESL CHARGER", "EFL CHARGER"];
 
-// Root endpoint
-expressApp.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "/index.html"));
-});
+// Start ngrok and set the webhook
+await (async function () {
+  try {
+    // Connect ngrok to the specified port
+    const url = await ngrok.connect(port);
+    const WEBHOOK_URL = `${url}/telegram-webhook`;
+    // Set the webhook for the bot
+    await bot.telegram.setWebhook(WEBHOOK_URL);
+    console.log(`Webhook set to ${WEBHOOK_URL}`);
 
-// Launch the bot
-bot.launch();
+    // Webhook handler for incoming Telegram updates
+    expressApp.post("/telegram-webhook", (req, res) => {
+      // console.log("Received update from Telegram:", req.body);
+      bot
+        .handleUpdate(req.body)
+        .then(() => {
+          if (!res.headersSent) {
+            res.sendStatus(200);
+          }
+        })
+        .catch((error) => {
+          console.error("Error in webhook handler:", error);
+          if (!res.headersSent) {
+            res.sendStatus(500);
+          }
+        });
+    });
 
-// Listen on the configured port
-expressApp.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+    // Root endpoint to serve the main page
+    expressApp.get("/", (req, res) => {
+      res.sendFile(path.join(__dirname, "/index.html"));
+    });
+
+    // Start the Express server
+    expressApp.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
+  } catch (err) {
+    console.error("Error setting up webhook or server:", err);
+  }
+})();
 
 bot.command("start", (ctx) => {
   console.log(ctx.from);
-  bot.telegram.sendMessage(ctx.chat.id, "Hello there! I am the FM helper bot.");
+  // ctx.session.state = 'idle'
+  // ctx.session.cur_command = null
+  return botSendMessage(ctx, "Hello there! I am the FM helper bot.");
 });
 
 bot.command("health_check", (ctx) => {
   // console.log(ctx.from);
-  bot.telegram.sendMessage(ctx.chat.id, "Health OK. Bot is up and functional");
+  if (ctx.session.state != "idle") {
+    return botSendMessage(
+      ctx,
+      `Unable to perform health check, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
+    );
+  }
+  return botSendMessage(ctx, "Health OK. Bot is up and functional");
 });
 
 bot.command("serv_state", async (ctx) => {
-  // try {
-  //   const vehiclesWithVorReasons = await prisma.vehicles.findMany({
-  //     include: {
-  //       vehicle_vor_reason: {
-  //         select: {
-  //           vor_reason: true,
-  //           date_reported: true,
-  //         },
-  //       },
-  //     },
-  //     orderBy: {
-  //       vec_num: "asc",
-  //     },
-  //     where: {
-  //       isvor: true,
-  //     },
-  //   });
-
-  //   const vehiclesWithVorReasonsFormattedDate = vehiclesWithVorReasons.map(
-  //     (vehicle) => {
-  //       return {
-  //         ...vehicle,
-  //         vehicle_vor_reason: vehicle.vehicle_vor_reason.map((vorReason) => {
-  //           return {
-  //             ...vorReason,
-  //             date_reported: vorReason.date_reported
-  //               ? format(new Date(vorReason.date_reported), "dd-MM-yyyy")
-  //               : null,
-  //           };
-  //         }),
-  //       };
-  //     }
-  //   );
-  //   const VORvehicleDataGroupedByType = {};
-
-  //   vehicleTypes.forEach((type) => {
-  //     const filteredVehicles = vehiclesWithVorReasonsFormattedDate.filter(
-  //       (vehicle) => {
-  //         return vehicle.type === type;
-  //       }
-  //     );
-  //     VORvehicleDataGroupedByType[type] = filteredVehicles;
-  //   });
-
-  //   // console.log(JSON.stringify(VORvehicleDataGroupedByType, null, 2));
-  //   const currentDate = getCurrentDateInSingapore();
-  //   let serv_state_msg = `SERV STATE OF FM VEH ${currentDate}`;
-
-  //   for (const vehicleType in VORvehicleDataGroupedByType) {
-  //     const VORvehiclesListByType = VORvehicleDataGroupedByType[vehicleType];
-
-  //     const { total, required } = vehicle_count[vehicleType];
-  //     serv_state_msg += `\n\n${vehicleType} (${
-  //       total - VORvehiclesListByType.length
-  //     }/${total}) [OPS REQUIREMENT: ${required}]\n`;
-
-  //     VORvehiclesListByType.forEach((vec) => {
-  //       const { vec_num, vehicle_vor_reason } = vec;
-  //       const vorText = vehicle_vor_reason.map((vor_reason) => {
-  //         return `${vor_reason.vor_reason} ${
-  //           vor_reason.date_reported ? `(${vor_reason.date_reported})` : ""
-  //         }`;
-  //       });
-  //       const joinedVORText = vorText.join(" ");
-  //       serv_state_msg += `\n${vec_num}(VOR) - ${joinedVORText}`;
-  //     });
-  //     serv_state_msg += "\n_________";
-  //   }
-
-  //   try {
-  //     const chargersWithVORReasons = await prisma.chargers.findMany({
-  //       include: {
-  //         charger_vor_reason: {
-  //           select: {
-  //             vor_reason: true,
-  //             date_reported: true,
-  //           },
-  //         },
-  //       },
-  //       orderBy: {
-  //         charger_num: "asc",
-  //       },
-  //       where: {
-  //         isvor: true,
-  //       },
-  //     });
-
-  //     const chargersWithVORReasonsFormattedDate = chargersWithVORReasons.map(
-  //       (charger) => {
-  //         return {
-  //           ...charger,
-  //           charger_vor_reason: charger.charger_vor_reason.map((vorReason) => {
-  //             return {
-  //               ...vorReason,
-  //               date_reported: vorReason.date_reported
-  //                 ? format(new Date(vorReason.date_reported), "dd-MM-yyyy")
-  //                 : null,
-  //             };
-  //           }),
-  //         };
-  //       }
-  //     );
-
-  //     const VORchargerGroupedByType = {};
-  //     chargerTypes.forEach((type) => {
-  //       const filteredChargers = chargersWithVORReasonsFormattedDate.filter(
-  //         (charger) => {
-  //           return charger.type === type;
-  //         }
-  //       );
-  //       VORchargerGroupedByType[type] = filteredChargers;
-  //     });
-
-  //     for (const chargerType in VORchargerGroupedByType) {
-  //       const VORchargerListByType = VORchargerGroupedByType[chargerType];
-
-  //       const { total, required } = vehicle_count[chargerType];
-  //       serv_state_msg += `\n\n${chargerType} (${
-  //         total - VORchargerListByType.length
-  //       }/${total}) [OPS REQUIREMENT: ${required}]\n`;
-
-  //       VORchargerListByType.forEach((charger) => {
-  //         const { charger_num, charger_loc, charger_vor_reason } = charger;
-  //         const vorText = charger_vor_reason.map((vor_reason) => {
-  //           return `${vor_reason.vor_reason} ${
-  //             vor_reason.date_reported ? `(${vor_reason.date_reported})` : ""
-  //           }`;
-  //         });
-  //         const joinedVORText = vorText.join(" ");
-  //         serv_state_msg += `\n${charger_num}(VOR) / ${charger_loc} - ${joinedVORText}`;
-  //       });
-  //       serv_state_msg += "\n_________";
-  //     }
-
-  //     bot.telegram.sendMessage(ctx.chat.id, serv_state_msg);
-  //   } catch (error) {
-  //     console.error(error);
-  //     bot.telegram.sendMessage(
-  //       ctx.chat.id,
-  //       "An error has occurred on the server trying to retrieve information on VOR chargers. Please contact 96305601 regarding this to fix this issue,"
-  //     );
-  //   }
-  // } catch (error) {
-  //   bot.telegram.sendMessage(
-  //     ctx.chat.id,
-  //     "An error has occurred on the server trying to retrieve information on VOR vehicles. Please contact 96305601 regarding this to fix this issue,"
-  //   );
-  // }
-  sendServState(bot, prisma, ctx, vehicle_count, chargerTypes, vehicleTypes)
+  if (ctx.session.state != "idle") {
+    return botSendMessage(
+      ctx,
+      `Unable to send serv state, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
+    );
+  }
+  return sendServState(
+    bot,
+    prisma,
+    ctx,
+    vehicle_count,
+    chargerTypes,
+    vehicleTypes
+  );
 });
 
 bot.command("show_wpt", async (ctx) => {
-  // try {
-  //   const notDrivenVehicles = await prisma.vehicles.findMany({
-  //     where: {
-  //       isvor: false,
-  //       driven: false,
-  //     },
-  //     select: {
-  //       vec_num: true,
-  //       type: true,
-  //     },
-  //     orderBy: {
-  //       vec_num: "asc",
-  //     },
-  //   });
+  if (ctx.session.state != "idle") {
+    return botSendMessage(
+      ctx,
+      `Unable to send WPT list, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
+    );
+  }
+  return sendWPT(bot, prisma, ctx, vehicle_count, chargerTypes, vehicleTypes);
+});
 
-  //   const currentDate = getCurrentDateInSingapore();
+bot.command("edit_serv_state", async (ctx) => {
+  if (
+    ctx.session.state != "idle" &&
+    ctx.session.cur_command !== "edit_serv_state"
+  ) {
+    return botSendMessage(
+      ctx,
+      `Unable to send edit serv state, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
+    );
+  }
+  ctx.session.state = "in_command";
+  ctx.session.cur_command = "edit_serv_state";
+  ctx.session.cur_step = 1;
+  await botSendMessage(
+    ctx,
+    "You have started a session to edit serv state! Please follow the following instructions..."
+  );
+  return botSendMessage(
+    ctx,
+    "What changes do you want to make to the serv_state?\n1 - Move vehicle/charger from VOR to SVC\n2 - Move vehicle/charger to VOR\n3 - Update VOR information of vehicle/charger"
+  );
+});
 
-  //   let WPTMessage = `MHE & OPS Keypress Check: Done (${currentDate})\n\nLogbook Check: Done (${currentDate})\n\nPlatforms yet to be used this week:\n`;
+bot.command("cancel", async (ctx) => {
+  if (ctx.session.state === "idle") {
+    return botSendMessage(
+      ctx,
+      "No existing command sessions. You are free to enter a new command!"
+    );
+  }
+  const command = ctx.session.cur_command;
+  restartCtx(ctx);
+  return botSendMessage(
+    ctx,
+    `Existing command session for /${command} has been cleared. You can enter a new command now!`
+  );
+});
 
-  //   const notDrivenVehiclesGroupedByType = {};
-  //   vehicleTypes.forEach((type) => {
-  //     const filteredVehicles = notDrivenVehicles.filter((vec) => {
-  //       return type === vec.type;
-  //     });
-  //     notDrivenVehiclesGroupedByType[type] = filteredVehicles;
-  //   });
-  //   // console.log(notDrivenVehiclesGroupedByType);
+// Handling undefined commands
+bot.on("message", async (ctx) => {
+  if (ctx.message.text && ctx.message.text.startsWith("/")) {
+    return botSendMessage(
+      ctx,
+      "Sorry, I didn’t recognize that command. Type /help for a list of available commands."
+    );
+  }
+  const text = ctx.message.text;
+  switch (ctx.session.cur_command) {
+    case "edit_serv_state":
+      if (ctx.session.cur_step === 1) {
+        switch (text) {
+          case "1":
+            // VOR to SVC
+            await sendServState(
+              bot,
+              prisma,
+              ctx,
+              vehicle_count,
+              chargerTypes,
+              vehicleTypes
+            );
+            await botSendMessage(
+              ctx,
+              "Please type the vehicles/chargers you wish to move from VOR to SVC in a list, each item should be separated by a comma\nExample: 46087, 46088, 51000"
+            );
+            ctx.session.input[ctx.session.cur_step] = text;
+            ctx.session.cur_step++;
+            break;
 
-  //   for (const vehicleType in notDrivenVehiclesGroupedByType) {
-  //     if (notDrivenVehiclesGroupedByType[vehicleType].length > 0) {
-  //       const vehicleList = notDrivenVehiclesGroupedByType[vehicleType].map(
-  //         (vec) => {
-  //           return vec.vec_num;
-  //         }
-  //       );
-  //       const vehicleListString = vehicleList.join(", ");
-  //       WPTMessage += `\n${vehicleType}: ${vehicleListString}\n`;
-  //     } else {
-  //       WPTMessage += `\n${vehicleType}: NIL\n`;
-  //     }
-  //   }
+          case "2":
+            // SVC to VOR
+            await botSendMessage(
+              ctx,
+              "Please enter the vehicles/chargers you wish to move from SVC to VOR, including the VOR information. Each vehicle/charger and VOR information should go on a new line. Follow the format 'vehicle_number, VOR_reason, date_reported' \nExample:\n46087, Cannot start, 24-06-2003\n46087, Found fault in engine, 29-06-2003\n51000, Hydraulic driver require replacement, 20-07-2022\nIf there are more than one VOR reasons found on two separate dates, they should be entered on separate lines BUT in chronological order. Format for date has to be followed STRICTLY."
+            );
+            ctx.session.input[ctx.session.cur_step] = text;
+            ctx.session.cur_step++;
+            break;
 
-  //   try {
-  //     const VORvehicles = await prisma.vehicles.findMany({
-  //       select: {
-  //         vec_num: true,
-  //         type: true,
-  //       },
-  //       orderBy: {
-  //         vec_num: 'asc',
-  //       },
-  //       where: {
-  //         isvor: true,
-  //       },
-  //     });
+          case "3":
+            // Updating VOR info
+            await botSendMessage(
+              ctx,
+              "Enter the vehicle/charger you wish to update VOR information for, the new VOR information and the date reported. This command can only work for 1 vehicle or charger at a time. Remember to follow the date format STRICTLY\nExample: 46088, Found engine problem, 20-02-2024"
+            );
+            ctx.session.input[ctx.session.cur_step] = text;
+            ctx.session.cur_step++;
+            break;
 
-  //     const VORVehiclesGroupedByType = {};
-  //     vehicleTypes.forEach((type) => {
-  //       const filteredVehicles = VORvehicles.filter((vec) => {
-  //         return type === vec.type;
-  //       });
-  //       VORVehiclesGroupedByType[type] = filteredVehicles;
-  //     });
+          default:
+            await botSendMessage(
+              ctx,
+              `${text} is not an appropriate input for the command, please enter an appropriate input.\n1 - Move vehicle/charger from VOR to SVC\n2 - Move vehicle/charger to VOR\n3 - Update VOR information of vehicle/charger`
+            );
+            break;
+        }
+      } else if (ctx.session.cur_step === 2) {
+        // Step 2. Users sending in the input for /edit_serv_state
+        switch (ctx.session.input[1]) {
+          case "1": {
+            // Separate list of vehicles into an array and then move them to SVC using prisma
+            const itemToSVCList = text.split(", ");
+            console.log(itemToSVCList);
+            // Check if all the vehicles are valid vehicles
+            try {
+              const fullVehicleList = await prisma.vehicles.findMany({
+                select: {
+                  vec_num: true,
+                },
+              });
+              const fullChargerList = await prisma.chargers.findMany({
+                select: {
+                  charger_num: true,
+                },
+              });
+              const fullVehicleAndChargerList = {
+                vehicleNumbers: fullVehicleList.map((v) => v.vec_num),
+                chargerNumbers: fullChargerList.map((c) => c.charger_num),
+              };
+              console.log(fullVehicleAndChargerList);
+              try {
+                // Checking if all the vehicles/charger numbers entered are valid. If not, throw an error
+                let invalidItems = [];
+                let vehicleNumToChange = []
+                let chargerNumToChange = []
+                itemToSVCList.forEach((item) => {
+                  if (
+                    !fullVehicleAndChargerList.vehicleNumbers.includes(item) &&
+                    !fullVehicleAndChargerList.chargerNumbers.includes(item)
+                  ) {
+                    // throw new Error(`${item} does not exist in the list of vehicles. Please make an edit and send the vehicle/charger list again to proceed with the command.`)
+                    invalidItems.push(item);
+                  }else{
+                    if(fullVehicleAndChargerList.vehicleNumbers.includes(item)){
+                      vehicleNumToChange.push(item)
+                    }else{
+                      chargerNumToChange.push(item)
+                    }
+                  }
+                });
+                if (invalidItems.length > 0) {
+                  const joinedInvalidItems = invalidItems.join(", ");
+                  throw new Error(
+                    `${joinedInvalidItems} does not exist in the list of vehicles. Please edit and send the vehicle/charger list again to proceed with the command.`
+                  );
+                } else {
+                  // Make the changes
+                  console.log("Vehicles to SVC: ", vehicleNumToChange);
+                  console.log("Chargers to SVC: ", chargerNumToChange);
+                  try {
+                    await prisma.$transaction([
+                      prisma.vehicles.updateMany({
+                        where: {
+                          vec_num: {
+                            in: vehicleNumToChange,
+                          },
+                        },
+                        data: { isvor: false },
+                      }),
+                      prisma.chargers.updateMany({
+                        where: {
+                          charger_num: {
+                            in: chargerNumToChange,
+                          },
+                        },
+                        data: { isvor: false },
+                      }),
+                      prisma.vehicle_vor_reason.deleteMany({
+                        where: {
+                          vehicles: {
+                            isvor: false,
+                          },
+                        },
+                      }),
+                      prisma.charger_vor_reason.deleteMany({
+                        where: {
+                          chargers: {
+                            isvor: false,
+                          },
+                        },
+                      }),
+                    ]);
+                    restartCtx(ctx);
+                    await botSendMessage(
+                      ctx,
+                      "Serv state successfully updated, command session ended! Here is the updated serv_state..."
+                    );
+                    return sendServState(
+                      bot,
+                      prisma,
+                      ctx,
+                      vehicle_count,
+                      chargerTypes,
+                      vehicleTypes
+                    );
+                  } catch (error) {
+                    console.error("Error: ", error);
+                  }
+                }
+              } catch (error) {
+                console.error("Error: ", error);
+                return botSendMessage(ctx, error.message);
+              }
+            } catch (error) {
+              console.log("Error: ", error);
+            }
+            break;
+          }
+          case "2":
+            // for Option 2 to shift from SVC to VOR
+            break;
+          case "3":
+            // For Option 3 to update VOR messages
+            break;
 
-  //     WPTMessage += "\n==========U/S===========\n"
+          default:
+            break;
+        }
+      }
 
-  //     for (const vehicleType in VORVehiclesGroupedByType) {
-  //       if (VORVehiclesGroupedByType[vehicleType].length > 0) {
-  //         const vehicleList = VORVehiclesGroupedByType[vehicleType].map(
-  //           (vec) => {
-  //             return vec.vec_num;
-  //           }
-  //         );
-  //         const vehicleListString = vehicleList.join(", ");
-  //         WPTMessage += `\n${vehicleType}: ${vehicleListString}\n`;
-  //       } else {
-  //         WPTMessage += `\n${vehicleType}: NIL\n`;
-  //       }
-  //     }
+      break;
 
-  //     bot.telegram.sendMessage(ctx.chat.id, WPTMessage);
-  //   } catch (error) {
-  //     console.error(error);
-  //     bot.telegram.sendMessage(ctx.chat.id, "Error occurred on server when retrieving VOR vehicles for WPT list.");
-  //   }
-  // } catch (error) {
-  //   console.error(error);
-  //   bot.telegram.sendMessage(
-  //     ctx.chat.id,
-  //     "Error retrieving vehicles that are not driven for WPT list. "
-  //   );
-  // }
-  sendWPT(bot, prisma, ctx, vehicle_count, chargerTypes, vehicleTypes)
+    default:
+      await botSendMessage(ctx, "Irrelevant message. Please type in a command");
+      break;
+  }
 });

@@ -165,16 +165,16 @@ export async function sendServState(
         serv_state_msg += "\n_________";
       }
 
-      bot.telegram.sendMessage(ctx.chat.id, serv_state_msg);
+      return bot.telegram.sendMessage(ctx.chat.id, serv_state_msg);
     } catch (error) {
       console.error(error);
-      bot.telegram.sendMessage(
+      return bot.telegram.sendMessage(
         ctx.chat.id,
         "An error has occurred on the server trying to retrieve information on VOR chargers. Please contact 96305601 regarding this to fix this issue,"
       );
     }
   } catch (error) {
-    bot.telegram.sendMessage(
+      return bot.telegram.sendMessage(
       ctx.chat.id,
       "An error has occurred on the server trying to retrieve information on VOR vehicles. Please contact 96305601 regarding this to fix this issue,"
     );
@@ -272,16 +272,29 @@ export async function sendWPT(
       bot.telegram.sendMessage(ctx.chat.id, WPTMessage);
     } catch (error) {
       console.error(error);
-      bot.telegram.sendMessage(
+      return bot.telegram.sendMessage(
         ctx.chat.id,
         "Error occurred on server when retrieving VOR vehicles for WPT list."
       );
     }
   } catch (error) {
     console.error(error);
-    bot.telegram.sendMessage(
+    return bot.telegram.sendMessage(
       ctx.chat.id,
       "Error retrieving vehicles that are not driven for WPT list. "
     );
   }
+}
+
+export async function botSendMessage(ctx, message){
+  await ctx.reply(`@${ctx.from.username}\n${message}`);
+}
+
+export function restartCtx(ctx){
+  ctx.session = {
+    state: "idle",
+    cur_command: null,
+    cur_step: null,
+    input: {},
+  };
 }

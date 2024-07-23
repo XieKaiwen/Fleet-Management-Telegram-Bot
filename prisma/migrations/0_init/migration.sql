@@ -32,7 +32,7 @@ CREATE TABLE "vehicle_vor_reason" (
 -- CreateTable
 CREATE TABLE "vehicles" (
     "id" SERIAL NOT NULL,
-    "vec_num" INTEGER NOT NULL,
+    "vec_num" TEXT NOT NULL,
     "isvor" BOOLEAN NOT NULL,
     "driven" BOOLEAN NOT NULL,
     "type" TEXT NOT NULL,

@@ -34,7 +34,7 @@ model vehicle_vor_reason {
 
 model vehicles {
   id                 Int                  @id @default(autoincrement())
-  vec_num            Int
+  vec_num            String
   isvor              Boolean
   driven             Boolean
   type               String
