@@ -40,6 +40,12 @@ CREATE TABLE "vehicles" (
     CONSTRAINT "vehicles_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateIndex
+CREATE UNIQUE INDEX "unique_charger_num" ON "chargers"("charger_num");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "unique_vec_num" ON "vehicles"("vec_num");
+
 -- AddForeignKey
 ALTER TABLE "charger_vor_reason" ADD CONSTRAINT "charger_vor_reason_charger_id_fkey" FOREIGN KEY ("charger_id") REFERENCES "chargers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 

@@ -7,16 +7,18 @@ import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 import {
   botSendMessage,
-  restartCtx,
+  editServStateStep1,
+  editServStateStep2,
+  restartCtxSession,
   sendServState,
   sendWPT,
 } from "./helper_functions.js";
 import ngrok from "ngrok";
-import { isBoxedPrimitive } from "util/types";
+
 
 config();
 // Using Prisma ORM
-const prisma = new PrismaClient();
+export const prisma = new PrismaClient();
 
 // Setup __dirname equivalent in ES module scope
 const __filename = fileURLToPath(import.meta.url);
@@ -31,7 +33,7 @@ expressApp.use(express.static("static"));
 expressApp.use(express.json());
 
 // Initialize the bot
-const bot = new Telegraf(process.env.BOT_TOKEN, {
+export const bot = new Telegraf(process.env.BOT_TOKEN, {
   telegram: { webhookReply: false },
 });
 const sessionStore = {};
@@ -118,6 +120,8 @@ console.log(vehicleTypes);
 
 const chargerTypes = ["ESL CHARGER", "EFL CHARGER"];
 
+export const defParams = {bot, prisma, vehicle_count, chargerTypes, vehicleTypes}
+
 // Start ngrok and set the webhook
 await (async function () {
   try {
@@ -186,12 +190,7 @@ bot.command("serv_state", async (ctx) => {
     );
   }
   return sendServState(
-    bot,
-    prisma,
-    ctx,
-    vehicle_count,
-    chargerTypes,
-    vehicleTypes
+    defParams, ctx
   );
 });
 
@@ -202,7 +201,7 @@ bot.command("show_wpt", async (ctx) => {
       `Unable to send WPT list, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
     );
   }
-  return sendWPT(bot, prisma, ctx, vehicle_count, chargerTypes, vehicleTypes);
+  return sendWPT(defParams, ctx);
 });
 
 bot.command("edit_serv_state", async (ctx) => {
@@ -236,7 +235,7 @@ bot.command("cancel", async (ctx) => {
     );
   }
   const command = ctx.session.cur_command;
-  restartCtx(ctx);
+  restartCtxSession(ctx);
   return botSendMessage(
     ctx,
     `Existing command session for /${command} has been cleared. You can enter a new command now!`
@@ -255,176 +254,10 @@ bot.on("message", async (ctx) => {
   switch (ctx.session.cur_command) {
     case "edit_serv_state":
       if (ctx.session.cur_step === 1) {
-        switch (text) {
-          case "1":
-            // VOR to SVC
-            await sendServState(
-              bot,
-              prisma,
-              ctx,
-              vehicle_count,
-              chargerTypes,
-              vehicleTypes
-            );
-            await botSendMessage(
-              ctx,
-              "Please type the vehicles/chargers you wish to move from VOR to SVC in a list, each item should be separated by a comma\nExample: 46087, 46088, 51000"
-            );
-            ctx.session.input[ctx.session.cur_step] = text;
-            ctx.session.cur_step++;
-            break;
-
-          case "2":
-            // SVC to VOR
-            await botSendMessage(
-              ctx,
-              "Please enter the vehicles/chargers you wish to move from SVC to VOR, including the VOR information. Each vehicle/charger and VOR information should go on a new line. Follow the format 'vehicle_number, VOR_reason, date_reported' \nExample:\n46087, Cannot start, 24-06-2003\n46087, Found fault in engine, 29-06-2003\n51000, Hydraulic driver require replacement, 20-07-2022\nIf there are more than one VOR reasons found on two separate dates, they should be entered on separate lines BUT in chronological order. Format for date has to be followed STRICTLY."
-            );
-            ctx.session.input[ctx.session.cur_step] = text;
-            ctx.session.cur_step++;
-            break;
-
-          case "3":
-            // Updating VOR info
-            await botSendMessage(
-              ctx,
-              "Enter the vehicle/charger you wish to update VOR information for, the new VOR information and the date reported. This command can only work for 1 vehicle or charger at a time. Remember to follow the date format STRICTLY\nExample: 46088, Found engine problem, 20-02-2024"
-            );
-            ctx.session.input[ctx.session.cur_step] = text;
-            ctx.session.cur_step++;
-            break;
-
-          default:
-            await botSendMessage(
-              ctx,
-              `${text} is not an appropriate input for the command, please enter an appropriate input.\n1 - Move vehicle/charger from VOR to SVC\n2 - Move vehicle/charger to VOR\n3 - Update VOR information of vehicle/charger`
-            );
-            break;
-        }
+        await editServStateStep1(defParams, ctx, text);
       } else if (ctx.session.cur_step === 2) {
-        // Step 2. Users sending in the input for /edit_serv_state
-        switch (ctx.session.input[1]) {
-          case "1": {
-            // Separate list of vehicles into an array and then move them to SVC using prisma
-            const itemToSVCList = text.split(", ");
-            console.log(itemToSVCList);
-            // Check if all the vehicles are valid vehicles
-            try {
-              const fullVehicleList = await prisma.vehicles.findMany({
-                select: {
-                  vec_num: true,
-                },
-              });
-              const fullChargerList = await prisma.chargers.findMany({
-                select: {
-                  charger_num: true,
-                },
-              });
-              const fullVehicleAndChargerList = {
-                vehicleNumbers: fullVehicleList.map((v) => v.vec_num),
-                chargerNumbers: fullChargerList.map((c) => c.charger_num),
-              };
-              console.log(fullVehicleAndChargerList);
-              try {
-                // Checking if all the vehicles/charger numbers entered are valid. If not, throw an error
-                let invalidItems = [];
-                let vehicleNumToChange = []
-                let chargerNumToChange = []
-                itemToSVCList.forEach((item) => {
-                  if (
-                    !fullVehicleAndChargerList.vehicleNumbers.includes(item) &&
-                    !fullVehicleAndChargerList.chargerNumbers.includes(item)
-                  ) {
-                    // throw new Error(`${item} does not exist in the list of vehicles. Please make an edit and send the vehicle/charger list again to proceed with the command.`)
-                    invalidItems.push(item);
-                  }else{
-                    if(fullVehicleAndChargerList.vehicleNumbers.includes(item)){
-                      vehicleNumToChange.push(item)
-                    }else{
-                      chargerNumToChange.push(item)
-                    }
-                  }
-                });
-                if (invalidItems.length > 0) {
-                  const joinedInvalidItems = invalidItems.join(", ");
-                  throw new Error(
-                    `${joinedInvalidItems} does not exist in the list of vehicles. Please edit and send the vehicle/charger list again to proceed with the command.`
-                  );
-                } else {
-                  // Make the changes
-                  console.log("Vehicles to SVC: ", vehicleNumToChange);
-                  console.log("Chargers to SVC: ", chargerNumToChange);
-                  try {
-                    await prisma.$transaction([
-                      prisma.vehicles.updateMany({
-                        where: {
-                          vec_num: {
-                            in: vehicleNumToChange,
-                          },
-                        },
-                        data: { isvor: false },
-                      }),
-                      prisma.chargers.updateMany({
-                        where: {
-                          charger_num: {
-                            in: chargerNumToChange,
-                          },
-                        },
-                        data: { isvor: false },
-                      }),
-                      prisma.vehicle_vor_reason.deleteMany({
-                        where: {
-                          vehicles: {
-                            isvor: false,
-                          },
-                        },
-                      }),
-                      prisma.charger_vor_reason.deleteMany({
-                        where: {
-                          chargers: {
-                            isvor: false,
-                          },
-                        },
-                      }),
-                    ]);
-                    restartCtx(ctx);
-                    await botSendMessage(
-                      ctx,
-                      "Serv state successfully updated, command session ended! Here is the updated serv_state..."
-                    );
-                    return sendServState(
-                      bot,
-                      prisma,
-                      ctx,
-                      vehicle_count,
-                      chargerTypes,
-                      vehicleTypes
-                    );
-                  } catch (error) {
-                    console.error("Error: ", error);
-                  }
-                }
-              } catch (error) {
-                console.error("Error: ", error);
-                return botSendMessage(ctx, error.message);
-              }
-            } catch (error) {
-              console.log("Error: ", error);
-            }
-            break;
-          }
-          case "2":
-            // for Option 2 to shift from SVC to VOR
-            break;
-          case "3":
-            // For Option 3 to update VOR messages
-            break;
-
-          default:
-            break;
-        }
+        await editServStateStep2(defParams, ctx, text)
       }
-
       break;
 
     default:
@@ -432,3 +265,4 @@ bot.on("message", async (ctx) => {
       break;
   }
 });
+

@@ -17,7 +17,7 @@ model charger_vor_reason {
 
 model chargers {
   id                 Int                  @id @default(autoincrement())
-  charger_num        String
+  charger_num        String               @unique(map: "unique_charger_num")
   charger_loc        String
   isvor              Boolean
   type               String
@@ -34,7 +34,7 @@ model vehicle_vor_reason {
 
 model vehicles {
   id                 Int                  @id @default(autoincrement())
-  vec_num            String
+  vec_num            String               @unique(map: "unique_vec_num")
   isvor              Boolean
   driven             Boolean
   type               String
