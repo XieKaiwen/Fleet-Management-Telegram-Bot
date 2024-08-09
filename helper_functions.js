@@ -293,6 +293,12 @@ export function restartCtxSession(ctx) {
   ctx.session.cur_step = null;
   ctx.session.input = {};
 }
+
+function convertDateFormat(dateString) {
+  const [day, month, year] = dateString.split("/");
+  return `${year}-${month}-${day}`;
+}
+
 export async function editServStateStep1(
   { bot, prisma, vehicle_count, chargerTypes, vehicleTypes },
   ctx,
@@ -300,14 +306,13 @@ export async function editServStateStep1(
 ) {
   // console.log("REACHED HERE");
   // console.log("Text: ", text);
+  await sendServState(
+    { bot, prisma, vehicle_count, chargerTypes, vehicleTypes },
+    ctx
+  );
   switch (text) {
     case "1":
       // VOR to SVC
-      await sendServState(
-        { bot, prisma, vehicle_count, chargerTypes, vehicleTypes },
-        ctx
-      );
-
       await botSendMessage(
         ctx,
         "Please type the vehicles/chargers you wish to move from VOR to SVC in a list, each item should be separated by a comma\nExample: 46087, 46088, 51000"
@@ -320,17 +325,17 @@ export async function editServStateStep1(
       // SVC to VOR
       await botSendMessage(
         ctx,
-        "Please enter the vehicles/chargers you wish to move from SVC to VOR, including the VOR information. Each vehicle/charger and VOR information should go on a new line. Follow the format 'vehicle_number - VOR_reason - date_reported' \nExample:\nvehicle_1 - vor_reason - DD/MM/YYYY\nvehicle_2 - vor_reason - DD/MM/YYYY\nvehicle_3 - vor_reason - DD/MM/YYYY\nIf there are more than one VOR reasons found on two separate dates, they should be entered on separate lines. Format for date has to be followed STRICTLY."
+        "Please enter the vehicles/chargers you wish to move from SVC to VOR, including the VOR information. Each vehicle/charger and VOR information should go on a new line. Follow the format 'item_number - VOR_reason - date_reported'\n\nExample:\nvehicle_1 - vor_reason - DD/MM/YYYY\nvehicle_2 - vor_reason - DD/MM/YYYY\nvehicle_3 - vor_reason - DD/MM/YYYY\n\nIf there are more than one VOR reasons found on two separate dates, they should be entered on separate lines. Format for date has to be followed STRICTLY."
       );
       ctx.session.input[ctx.session.cur_step] = text;
       ctx.session.cur_step++;
       break;
 
     case "3":
-      // Updating VOR info
+      // Updating VOR info : 1. Replace entire VOR message 2. Append a message to the end of the entire thing
       await botSendMessage(
         ctx,
-        "Enter the vehicle/charger you wish to update VOR information for, the new VOR information and the date reported. This command can only work for 1 vehicle or charger at a time. Remember to follow the date format STRICTLY\nExample: 46088, Found engine problem, 20-02-2024"
+        "You have chosen to update VOR reasons for vehicle/charger. Choose one of the following options to proceed:\n\n1. Replace entire VOR reason (To change the entire VOR reason)\n2. Append VOR reasons (For adding latest updates)"
       );
       ctx.session.input[ctx.session.cur_step] = text;
       ctx.session.cur_step++;
@@ -598,10 +603,6 @@ export async function editServStateStep2(
             chargers: {},
           };
           // Format date to put into database
-          function convertDateFormat(dateString) {
-            const [day, month, year] = dateString.split("/");
-            return `${year}-${month}-${day}`;
-          }
           if (Object.keys(combinedItemsToUpdate.vehicles).length > 0) {
             for (const vecNum in combinedItemsToUpdate.vehicles) {
               combinedItemsToUpdateFormattedDate.vehicles[vecNum] =
@@ -748,11 +749,237 @@ export async function editServStateStep2(
         );
       }
 
-      break;
     case "3":
-      // For Option 3 to update VOR messages
-      break;
+      // For Option 3 to update VOR messages: Replace VOR messages or add VOR messages
+      if (text === "1" || text === "2") {
+        ctx.session.input[ctx.session.cur_step] = text;
+        ctx.session.cur_step++;
+        if (text === "1") {
+          return botSendMessage(
+            ctx,
+            "To replace VOR reasons, enter the new VOR reason in the format: vehicle/charger_num - vor_reason - DD/MM/YYYY.\nFor separate vehicles, write them on separate lines, only ONE line per vehicle is allowed, follow the format STRICTLY.\n\nExample:\n46086 - Wheel burst - 28/12/2004\n51012 - Low battery - 01/01/2004\n50701 - Cannot start - 12/09/2015"
+          );
+        } else if (text === "2") {
+          return botSendMessage(
+            ctx,
+            "To append VOR reasons, enter the new VOR reasons in the format: vehicle/charger_num - vor_reason - DD/MM/YYYY.\nTo add multiple VOR reasons for the same vehicle but on different dates, enter on separate lines\nFor separate vehicles, write them on separate lines.\n\nExample:\n46086 - Wheel burst - 28/12/2004\n46086 - Cannot start - 30/12/2004\n51012 - Low battery - 01/01/2004\n50701 - Cannot start - 12/09/2015"
+          );
+        }
+      } else {
+        await botSendMessage(
+          ctx,
+          `${text} is not an appropriate input for the command, please enter an appropriate input.\n1. Replace entire VOR reason (To change the entire VOR reason)\n2. Append VOR reasons (For adding latest updates)`
+        );
+        break;
+      }
 
+    default:
+      break;
+  }
+}
+
+export async function editServStateStep3(
+  { bot, prisma, vehicle_count, chargerTypes, vehicleTypes },
+  ctx,
+  text
+) {
+  switch (ctx.session.input[1]) {
+    case "3":
+      // only for update VOR message, the input here is 1 for replace VOR reason 2 is append VOR reason.
+
+      switch (ctx.session.input[2]) {
+        case "1":
+          // Replace VOR message
+          // 1. Split the input by newline character
+          try {
+            const splitLines = text.split("\n");
+            const fullVORVehicleList = await prisma.vehicles.findMany({
+              select: {
+                vec_num: true,
+              },
+              where:{
+                isvor: true
+              }
+            });
+            const fullVORChargerList = await prisma.chargers.findMany({
+              select: {
+                charger_num: true,
+              },
+              where: {
+                isvor: true
+              }
+            });
+            const fullVORVehicleAndChargerList = {
+              vehicleNumbers: fullVORVehicleList.map((v) => v.vec_num),
+              chargerNumbers: fullVORChargerList.map((c) => c.charger_num),
+            };
+            // 2. Validate each line by first splitting them by " - " then validating each part of the line. Add invalid lines to an array, then output them
+            // Regex for date checking, check if vehicle is in full vehicle list
+            const invalidLines = [];
+            const itemsToReplaceVOR = {
+              vehicles: {},
+              chargers: {},
+            };
+            // inside vehicles/chargers we have vec_num: {dateReported: , vorReason: }
+            splitLines.forEach((line) => {
+              const lineParts = line.split(" - ");
+              if (lineParts.length == 3) {
+                // Check if the line has all 3 parts
+                const [item, vorReason, dateReported] = lineParts;
+                if (fullVORVehicleAndChargerList.vehicleNumbers.includes(item)) {
+                  if (
+                    !/^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/([0-9]{4})$/.test(
+                      dateReported
+                    )
+                  ) {
+                    invalidLines.push(line);
+                  } else {
+                    itemsToReplaceVOR.vehicles[item] = {
+                      dateReported: convertDateFormat(dateReported),
+                      vorReason: vorReason,
+                    };
+                  }
+                } else if (
+                  fullVORVehicleAndChargerList.chargerNumbers.includes(item)
+                ) {
+                  if (
+                    !/^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/([0-9]{4})$/.test(
+                      dateReported
+                    )
+                  ) {
+                    invalidLines.push(line);
+                  } else {
+                    itemsToReplaceVOR.chargers[item] = {
+                      dateReported: convertDateFormat(dateReported),
+                      vorReason: vorReason,
+                    };
+                  }
+                } else {
+                  invalidLines.push(line);
+                }
+              } else {
+                invalidLines.push(line);
+              }
+            });
+            // return a botSendMessage if there are invalid lines
+            if (invalidLines.length > 0) {
+              const invalidLinesJoined = invalidLines.join("\n");
+              await botSendMessage(
+                ctx,
+                `The following lines are invalid, please check and edit appropriately\n\n${invalidLinesJoined}`
+              );
+              return botSendMessage(
+                ctx,
+                "Some key points to check:\n\n1. Ensure that the vehicle/charger numbers actually exist\n2. Ensure that your date is written in the correct format of DD/MM/YYYY E.g. 30/09/2004\n3. Ensure that you have all and only the following parts: item_number - vor reason - date_reported (IMPT!).\n4. Ensure that all vehicles/chargers entered are already VOR status, if you wish to change SVC to VOR, cancel this session and choose the other option in the previous step."
+              );
+            }
+            // 3. Delete existing VOR reasons for the vehicle/charger
+            try {
+              const { vehicles, chargers } = itemsToReplaceVOR;
+
+              await prisma.$transaction(async (prisma) => {
+                // Get IDs of vehicles and chargers that exist in the database
+                const vehicleIds = await prisma.vehicles.findMany({
+                  where: {
+                    vec_num: { in: Object.keys(vehicles) },
+                  },
+                  select: { id: true },
+                });
+
+                const chargerIds = await prisma.chargers.findMany({
+                  where: {
+                    charger_num: { in: Object.keys(chargers) },
+                  },
+                  select: { id: true },
+                });
+
+                // Delete existing VOR reasons for vehicles
+                await prisma.vehicle_vor_reason.deleteMany({
+                  where: {
+                    vec_id: { in: vehicleIds.map((vehicle) => vehicle.id) },
+                  },
+                });
+
+                // Delete existing VOR reasons for chargers
+                await prisma.charger_vor_reason.deleteMany({
+                  where: {
+                    charger_id: { in: chargerIds.map((charger) => charger.id) },
+                  },
+                });
+
+                // Insert new VOR reasons for vehicles
+                for (const [
+                  vec_num,
+                  { dateReported, vorReason },
+                ] of Object.entries(vehicles)) {
+                  const vehicle = await prisma.vehicles.findUnique({
+                    where: { vec_num },
+                  });
+                  if (vehicle) {
+                    await prisma.vehicle_vor_reason.create({
+                      data: {
+                        vec_id: vehicle.id,
+                        date_reported: new Date(dateReported).toISOString(),
+                        vor_reason: vorReason,
+                      },
+                    });
+                  }
+                }
+
+                // Insert new VOR reasons for chargers
+                for (const [
+                  charger_num,
+                  { dateReported, vorReason },
+                ] of Object.entries(chargers)) {
+                  const charger = await prisma.chargers.findUnique({
+                    where: { charger_num },
+                  });
+                  if (charger) {
+                    await prisma.charger_vor_reason.create({
+                      data: {
+                        charger_id: charger.id,
+                        date_reported: new Date(dateReported).toISOString(),
+                        vor_reason: vorReason,
+                      },
+                    });
+                  }
+                }
+              });
+              restartCtxSession(ctx);
+              await botSendMessage(ctx,
+                "VOR reasons replaced. Here is the updated serv states...\n\n"
+              );
+              return sendServState({
+                bot,
+                prisma,
+                vehicle_count,
+                chargerTypes,
+                vehicleTypes
+              }, ctx);
+            } catch (error) {
+              console.error(error);
+              return botSendMessage(
+                ctx,
+                "Error occurred when trying to replace VOR messages. Please try again"
+              );
+            }
+          } catch (error) {
+            console.error(error);
+            return botSendMessage(
+              ctx,
+              "An error occurred when trying to retrieve vehicles and chargers from database."
+            );
+          }
+
+        case "2":
+          // Append VOR reason
+          // TODO Append VOR reason (just same format, add the vor_reasons into the tables)
+          break;
+
+        default:
+          break;
+      }
+      break;
     default:
       break;
   }
@@ -761,3 +988,5 @@ export async function editServStateStep2(
 46088 - Cannot start - 24/07/2024
 46089 - Wheel burst - 25/07/2016
 */
+
+// TODO write a function to show FULL vehicle list

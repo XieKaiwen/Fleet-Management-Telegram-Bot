@@ -9,6 +9,7 @@ import {
   botSendMessage,
   editServStateStep1,
   editServStateStep2,
+  editServStateStep3,
   restartCtxSession,
   sendServState,
   sendWPT,
@@ -38,8 +39,8 @@ export const bot = new Telegraf(process.env.BOT_TOKEN, {
 });
 const sessionStore = {};
 function botSessionMiddleware(ctx, next) {
-  const userId = ctx.from && ctx.from.id;
-  const chatId = ctx.chat && ctx.chat.id;
+  const userId = ctx.from?.id;
+  const chatId = ctx.chat?.id;
 
   // Create a unique key for each session (based on user and chat ID)
   const sessionId = `${chatId}:${userId}`;
@@ -223,7 +224,7 @@ bot.command("edit_serv_state", async (ctx) => {
   );
   return botSendMessage(
     ctx,
-    "What changes do you want to make to the serv_state?\n1 - Move vehicle/charger from VOR to SVC\n2 - Move vehicle/charger to VOR\n3 - Update VOR information of vehicle/charger"
+    "What changes do you want to make to the serv_state?\n\n1 - Move vehicle/charger from VOR to SVC\n2 - Move vehicle/charger to VOR\n3 - Update VOR information of vehicle/charger"
   );
 });
 
@@ -244,7 +245,7 @@ bot.command("cancel", async (ctx) => {
 
 // Handling undefined commands
 bot.on("message", async (ctx) => {
-  if (ctx.message.text && ctx.message.text.startsWith("/")) {
+  if (ctx.message?.text.startsWith("/")) {
     return botSendMessage(
       ctx,
       "Sorry, I didn’t recognize that command. Type /help for a list of available commands."
@@ -257,6 +258,8 @@ bot.on("message", async (ctx) => {
         await editServStateStep1(defParams, ctx, text);
       } else if (ctx.session.cur_step === 2) {
         await editServStateStep2(defParams, ctx, text)
+      }else if (ctx.session.cur_step === 3){
+        await editServStateStep3(defParams, ctx , text) // only update VOR reason has a step 3
       }
       break;
 
