@@ -1,13 +1,31 @@
 {
+  "dependencies": {
+    "@prisma/client": "^5.17.0",
+    "axios": "^1.7.2",
+    "date-fns": "^3.6.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "fs": "^0.0.1-security",
+    "ngrok": "^5.0.0-beta.2",
+    "pg": "^8.12.0",
+    "telegraf": "^4.16.3"
+  },
   "name": "fm-telebot",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node index.js"
   },
+  "type": "module",
   "author": "",
   "license": "ISC",
   "keywords": [],
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "prisma": "^5.17.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.3"
+  }
 }
