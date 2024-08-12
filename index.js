@@ -16,7 +16,6 @@ import {
 } from "./helper_functions.js";
 import ngrok from "ngrok";
 
-
 config();
 // Using Prisma ORM
 export const prisma = new PrismaClient();
@@ -58,8 +57,14 @@ function botSessionMiddleware(ctx, next) {
   // Attach session data to the context
   ctx.session = sessionStore[sessionId];
   console.log("CTX session: ", ctx.session);
-  ctx.message.text = ctx.message.text.trim();
-  console.log("CTX message: ", ctx.message.text);
+  if (ctx.message && ctx.message.text) {
+    ctx.message.text = ctx.message?.text.trim();
+  } else if (ctx.edited_message && ctx.edited_message.text) {
+    ctx.edited_message.text = ctx.edited_message?.text.trim();
+  }
+
+  console.log("CTX message: ", ctx.message?.text);
+  console.log("CTX editted message: ", ctx.edited_message?.text);
   // Proceed with the middleware chain
   return next();
 }
@@ -129,14 +134,21 @@ const chargerTypes = (
 ).map((item) => item.type);
 console.log(chargerTypes);
 
-export const defParams = {bot, prisma, vehicle_count, chargerTypes, vehicleTypes}
+export const defParams = {
+  bot,
+  prisma,
+  vehicle_count,
+  chargerTypes,
+  vehicleTypes,
+};
 
 // Start ngrok and set the webhook
 await (async function () {
-  const NODE_ENV = process.env.NODE_ENV
+  const NODE_ENV = process.env.NODE_ENV;
   try {
     // Connect ngrok to the specified port
-    const url = (NODE_ENV === "dev" ? await ngrok.connect(port) : process.env.BASE_URL)
+    const url =
+      NODE_ENV === "dev" ? await ngrok.connect(port) : process.env.BASE_URL;
     const WEBHOOK_URL = `${url}/telegram-webhook`;
     // Set the webhook for the bot
     await bot.telegram.setWebhook(WEBHOOK_URL);
@@ -199,9 +211,7 @@ bot.command("serv_state", async (ctx) => {
       `Unable to send serv state, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
     );
   }
-  return sendServState(
-    defParams, ctx
-  );
+  return sendServState(defParams, ctx);
 });
 
 bot.command("show_wpt", async (ctx) => {
@@ -260,15 +270,15 @@ bot.on("message", async (ctx) => {
       "Sorry, I didn’t recognize that command. Type /help for a list of available commands."
     );
   }
-  const text = ctx.message.text;
+  const text = ctx.message?.text || ctx.edited_message?.text;
   switch (ctx.session.cur_command) {
     case "edit_serv_state":
       if (ctx.session.cur_step === 1) {
         await editServStateStep1(defParams, ctx, text);
       } else if (ctx.session.cur_step === 2) {
-        await editServStateStep2(defParams, ctx, text)
-      }else if (ctx.session.cur_step === 3){
-        await editServStateStep3(defParams, ctx , text) // only update VOR reason has a step 3
+        await editServStateStep2(defParams, ctx, text);
+      } else if (ctx.session.cur_step === 3) {
+        await editServStateStep3(defParams, ctx, text); // only update VOR reason has a step 3
       }
       break;
 
