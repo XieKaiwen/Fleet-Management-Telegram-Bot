@@ -273,7 +273,7 @@ bot.on("message", async (ctx) => {
       break;
 
     default:
-      await botSendMessage(ctx, "Irrelevant message. Please type in a command");
+      // await botSendMessage(ctx, "Irrelevant message. Please type in a command");
       break;
   }
 });
