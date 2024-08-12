@@ -119,15 +119,24 @@ const vehicleTypes = (
 
 console.log(vehicleTypes);
 
-const chargerTypes = ["ESL CHARGER", "EFL CHARGER"];
+const chargerTypes = (
+  await prisma.chargers.findMany({
+    distinct: ["type"],
+    select: {
+      type: true,
+    },
+  })
+).map((item) => item.type);
+console.log(chargerTypes);
 
 export const defParams = {bot, prisma, vehicle_count, chargerTypes, vehicleTypes}
 
 // Start ngrok and set the webhook
 await (async function () {
+  const NODE_ENV = process.env.NODE_ENV
   try {
     // Connect ngrok to the specified port
-    const url = await ngrok.connect(port);
+    const url = (NODE_ENV === "dev" ? await ngrok.connect(port) : process.env.BASE_URL)
     const WEBHOOK_URL = `${url}/telegram-webhook`;
     // Set the webhook for the bot
     await bot.telegram.setWebhook(WEBHOOK_URL);
@@ -268,4 +277,5 @@ bot.on("message", async (ctx) => {
       break;
   }
 });
-
+// TODO Send full vehicle list command
+// TODO updateVehicleDriven command, with node scheduler

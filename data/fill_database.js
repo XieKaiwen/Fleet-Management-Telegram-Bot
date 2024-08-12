@@ -3,7 +3,7 @@ import { config } from 'dotenv';
 // Import the entire pg module as a single object
 import pkg from 'pg';
 import fs from "fs"
-import vec_data from "./vec_data.json" assert {type:"json"}
+import vec_data from "../vec_data.json" assert {type:"json"}
 import charger_data from "./charger_data.json" assert {type:"json"}
 config();
 
