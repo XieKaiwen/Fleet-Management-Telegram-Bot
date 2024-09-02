@@ -3,7 +3,7 @@ import {
   parseRowsWithItemVORReasonDate,
   validateRowsWithItemVORReasonDate,
 } from "./utils/inputHandlerUtils.js";
-
+import { getAllChargers, getAllVehicles } from "./utils/retrieveDataUtils.js";
 
 const exampleWithDuplicateVehiclesAndVORReason =
   "Example:\n46086 - Wheel burst - 28/12/2004\n51012 - Low battery - 01/01/2004\n50701 - Cannot start - 12/09/2015";
@@ -513,9 +513,9 @@ export async function editServStateStep2(
               invalidLines.push(line);
             } else {
               // Use regex to check if the date is written correctly
-              const [itemNumber, vorReason, dateReported] = lineSplitted;
+              const [itemNumber, dateReported] = lineSplitted;
               if (
-                !/^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/([0-9]{4})$/.test(
+                !/^(0[1-9]|[12]\d|3[01])\/(0[1-9]|1[0-2])\/(\d{4})$/.test(
                   dateReported
                 )
               ) {
@@ -774,13 +774,12 @@ export async function editServStateStep2(
           );
         }
       } else {
-        await botSendMessage(
+        return botSendMessage(
           ctx,
           `${text} is not an appropriate input for the command, please enter an appropriate input.\n1. Replace entire VOR reason (To change the entire VOR reason)\n2. Append VOR reasons (For adding latest updates)`
         );
-        break;
       }
-
+    break;
     default:
       break;
   }
@@ -838,7 +837,7 @@ export async function editServStateStep3(
                   fullVORVehicleAndChargerList.vehicleNumbers.includes(item)
                 ) {
                   if (
-                    !/^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/([0-9]{4})$/.test(
+                    !/^(0[1-9]|[12]\d|3[01])\/(0[1-9]|1[0-2])\/(\d{4})$/.test(
                       dateReported
                     )
                   ) {
@@ -853,7 +852,7 @@ export async function editServStateStep3(
                   fullVORVehicleAndChargerList.chargerNumbers.includes(item)
                 ) {
                   if (
-                    !/^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/([0-9]{4})$/.test(
+                    !/^(0[1-9]|[12]\d|3[01])\/(0[1-9]|1[0-2])\/(\d{4})$/.test(
                       dateReported
                     )
                   ) {
@@ -1059,13 +1058,22 @@ export async function editServStateStep3(
                   await Promise.all(chargerQueries);
                   // Insert new vor reasons for chargers ^
                 }
-                restartCtxSession(ctx)
-                await botSendMessage(ctx, "Successfully appended vor reasons! Here is the new serv state...")
-                return sendServState({bot, prisma, vehicle_count, chargerTypes, vehicleTypes}, ctx)
+                restartCtxSession(ctx);
+                await botSendMessage(
+                  ctx,
+                  "Successfully appended vor reasons! Here is the new serv state..."
+                );
+                return sendServState(
+                  { bot, prisma, vehicle_count, chargerTypes, vehicleTypes },
+                  ctx
+                );
               });
             } catch (error) {
               console.error(error);
-              return botSendMessage(ctx, "An error occurred when adding vor reasons to database. Please try again")
+              return botSendMessage(
+                ctx,
+                "An error occurred when adding vor reasons to database. Please try again"
+              );
             }
           } catch (error) {
             console.error(error);
@@ -1091,3 +1099,42 @@ export async function editServStateStep3(
 */
 
 // TODO write a function to show FULL vehicle list
+export async function sendFullList(ctx) {
+  const allVehicles = await getAllVehicles();
+  const allChargers = await getAllChargers();
+
+  const vehicleByType = {};
+  const chargersByType = {};
+  allVehicles.forEach((vehicle) => {
+    const { type, vec_num } = vehicle;
+    if (!(type in vehicleByType)) {
+      vehicleByType[type] = [];
+    }
+    vehicleByType[type].push(vec_num);
+  });
+  allChargers.forEach((charger) => {
+    const { type, charger_num } = charger;
+    if (!(type in chargersByType)) {
+      chargersByType[type] = [];
+    }
+    chargersByType[type].push(charger_num);
+  });
+
+
+  // Construct the message
+  let fullVehicleAndChargerMessage = "FULL VEHICLE AND CHARGER LIST:\n========================================\n"
+
+  for(const type in vehicleByType){
+    vehicleByType[type].sort()
+    fullVehicleAndChargerMessage += `\n${type}\n`
+    fullVehicleAndChargerMessage += vehicleByType[type].join(", ") + "\n"
+  }
+  for(const type in chargersByType){
+    chargersByType[type].sort()
+    fullVehicleAndChargerMessage += `\n${type}\n`
+    fullVehicleAndChargerMessage += chargersByType[type].join(", ") + "\n"
+  }
+
+  await botSendMessage(ctx, "Here is the full list of vehicle and chargers...")
+  return botSendMessage(ctx, fullVehicleAndChargerMessage)
+}

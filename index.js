@@ -11,6 +11,7 @@ import {
   editServStateStep2,
   editServStateStep3,
   restartCtxSession,
+  sendFullList,
   sendServState,
   sendWPT,
 } from "./helper_functions.js";
@@ -262,6 +263,10 @@ bot.command("cancel", async (ctx) => {
   );
 });
 
+bot.command("send_full_list", async (ctx) => {
+  await sendFullList(ctx)
+})
+
 // Handling undefined commands
 bot.on("message", async (ctx) => {
   if (ctx.message?.text.startsWith("/")) {
@@ -287,5 +292,4 @@ bot.on("message", async (ctx) => {
       break;
   }
 });
-// TODO Send full vehicle list command
 // TODO updateVehicleDriven command, with node scheduler

@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import {prismaClient as prisma} from "../prismaClient/prisma.js";
 
 export async function getAllVehicles() {
   const allVehicles = await prisma.vehicles.findMany();
