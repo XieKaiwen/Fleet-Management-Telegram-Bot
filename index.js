@@ -34,7 +34,7 @@ expressApp.use(express.json());
 
 // Initialize the bot
 export const bot = new Telegraf(process.env.BOT_TOKEN, {
-  telegram: { webhookReply: false },
+  telegram: { webhookReply: true },
 });
 const sessionStore = {};
 function botSessionMiddleware(ctx, next) {
