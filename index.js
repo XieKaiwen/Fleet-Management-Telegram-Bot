@@ -22,7 +22,6 @@ const port = process.env.PORT || 3000;
 expressApp.use(express.static("static"));
 expressApp.use(express.json());
 
-const sessionStore = {};
 
 bot.use(botSessionMiddleware);
 

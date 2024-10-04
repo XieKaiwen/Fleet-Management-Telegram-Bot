@@ -1,4 +1,4 @@
-import { botSendMessage, editServStateStep1, editServStateStep2, editServStateStep3, sendServState, sendWPT } from "./botCommandFunctions";
+import { botSendMessage, editServStateStep1, editServStateStep2, editServStateStep3, sendServState, sendWPT } from "./botCommandFunctions.js";
 
 export function addBotCommands(bot) {
   bot.command("start", (ctx) => {

@@ -1,11 +1,12 @@
 import { format } from "date-fns";
-import { defParams } from "../lib/constants";
+import { defParams } from "../lib/constants.js";
 import prisma from "../prismaClient/prisma.js";
 import {
+    formatChargerLine,
   formatServStateSection,
   formatVehicleLine,
-  formatVORSection,
   formatWPTSections,
+  getCurrentDateInSingapore,
   groupItemsByType,
 } from "../helper_functions.js";
 import {
@@ -19,8 +20,6 @@ import {
   INVALID_ITEM_ERROR_REMINDER_ALL_VOR,
   MULTILINE_INVALID_INPUT_REMINDER,
   ONLY_VOR_REMINDER,
-  REPLACE_VOR_MESSAGE_INSTRUCTIONS,
-  VOR_MULTILINE_INPUT,
   VOR_TO_SVC_INSTRUCTIONS,
 } from "./instructions.js";
 import {
@@ -115,7 +114,7 @@ export async function sendServState(ctx) {
         formatVehicleLine
       );
 
-      serv_state_msg += formatVORSection(
+      serv_state_msg += formatServStateSection(
         VORchargerGroupedByType,
         vehicle_count, // Use a separate count object if necessary
         formatChargerLine
@@ -439,13 +438,15 @@ export async function editServStateStep2(ctx, text) {
         ctx.session.cur_step++;
         if (text === "1") {
           await botSendMessage(ctx, ONLY_VOR_REMINDER);
-          return botSendMessage(ctx, REPLACE_VOR_MESSAGE_INSTRUCTIONS);
+          return botSendMessage(ctx, constructMultilineInstructions(
+            "Please enter the vehicles or chargers you wish update VOR messages for, with their VOR messages."
+          ));
         } else if (text === "2") {
           await botSendMessage(ctx, ONLY_VOR_REMINDER);
           return botSendMessage(
             ctx,
             constructMultilineInstructions(
-              "Please enter the vehicles or chargers you wish append VOR messages to."
+              "Please enter the vehicles or chargers you wish append VOR messages to, with their VOR messages."
             )
           );
         }

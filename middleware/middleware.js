@@ -1,3 +1,5 @@
+const sessionStore = {}
+
 export function botSessionMiddleware(ctx, next) {
   const userId = ctx.from?.id;
   const chatId = ctx.chat?.id;

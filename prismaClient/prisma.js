@@ -2,10 +2,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prismaClient = new PrismaClient();
 
-prismaClient.$extends({
-  name: "Retrieve vehicle with VOR reasons",
+const extendedPrismaClient =prismaClient.$extends({
+  name: "Custom Prisma Extensions",
   model: {
     vehicles: {
+      // Retrieve vehicles with VOR reasons
       async getVORVehiclesWithReasons() {
         return await prismaClient.vehicles.findMany({
           include: {
@@ -24,38 +25,45 @@ prismaClient.$extends({
           },
         });
       },
-    },
-  },
-});
 
-prismaClient.$extends({
-    name: "Retrieve vehicle with VOR reasons",
-    model: {
-      vehicles: {
-        async getVORVehicles() {
-          return await prisma.vehicles.findMany({
-            select: {
-              vec_num: true,
-              type: true,
-            },
-            orderBy: {
-              vec_num: "asc",
-            },
-            where: {
-              isvor: true,
-            },
-          });
-        },
+      // Retrieve vehicles marked as VOR (without reasons)
+      async getVORVehicles() {
+        return await prismaClient.vehicles.findMany({
+          select: {
+            vec_num: true,
+            type: true,
+          },
+          orderBy: {
+            vec_num: "asc",
+          },
+          where: {
+            isvor: true,
+          },
+        });
+      },
+
+      // Retrieve undriven SVC vehicles
+      async getSVCVehiclesNotDriven() {
+        return await prismaClient.vehicles.findMany({
+          where: {
+            isvor: false,
+            driven: false,
+          },
+          select: {
+            vec_num: true,
+            type: true,
+          },
+          orderBy: {
+            vec_num: "asc",
+          },
+        });
       },
     },
-  });
 
-prismaClient.$extends({
-  name: "Retrieve chargers with VOR reasons",
-  model: {
-    vehicles: {
+    chargers: {
+      // Retrieve chargers with VOR reasons
       async getVORChargersWithReasons() {
-        return await prisma.chargers.findMany({
+        return await prismaClient.chargers.findMany({
           include: {
             charger_vor_reason: {
               select: {
@@ -76,27 +84,4 @@ prismaClient.$extends({
   },
 });
 
-prismaClient.$extends({
-    name: "Retrieve undriven SVC vehicles",
-    model: {
-      vehicles: {
-        async getSVCVehiclesNotDriven() {
-          return await prisma.vehicles.findMany({
-            where: {
-              isvor: false,
-              driven: false,
-            },
-            select: {
-              vec_num: true,
-              type: true,
-            },
-            orderBy: {
-              vec_num: "asc",
-            },
-          });
-        },
-      },
-    },
-  });
-
-export default prismaClient;
+export default extendedPrismaClient;
