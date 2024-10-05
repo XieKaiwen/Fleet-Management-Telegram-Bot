@@ -1,12 +1,13 @@
 {
   "dependencies": {
-    "@prisma/client": "^5.17.0",
+    "@prisma/client": "^5.20.0",
     "axios": "^1.7.2",
     "date-fns": "^3.6.0",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "express": "^4.21.0",
     "fs": "^0.0.1-security",
     "ngrok": "^5.0.0-beta.2",
+    "node-cron": "^3.0.3",
     "pg": "^8.12.0",
     "telegraf": "^4.16.3"
   },
@@ -16,7 +17,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "watch": "nodemon index.js"
+    "watch": "nodemon index.js",
+    "DB-clear": "node prisma/clearDB.js",
+    "DB-reset": "node prisma/clearDB.js && node prisma/seed.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "type": "module",
   "author": "",
@@ -25,7 +31,7 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^20.14.11",
-    "prisma": "^5.17.0",
+    "prisma": "^5.20.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.3"
   }

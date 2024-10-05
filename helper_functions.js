@@ -79,11 +79,15 @@ export function formatServStateSection(
   formatItemLine
 ) {
   let section = "";
-
+  // console.log(countData);
+  
   for (const type in dataGroupedByType) {
     const items = dataGroupedByType[type];
+    // console.log(type);
+    // console.log(countData[type])
     const { total, required } = countData[type];
 
+    
     section += `\n\n${type} (${
       total - items.length
     }/${total}) [OPS REQUIREMENT: ${required}]\n`;
@@ -127,4 +131,19 @@ export function formatWPTSections(title, groupedVehicleData, types) {
   });
 
   return section;
+}
+
+export function formatDate(date) {
+  return date ? format(new Date(date), "dd-MM-yyyy") : null;
+}
+
+export function constructBotMessage(username, message, type = "normal") {
+  switch (type) {
+    case "error":
+      return `@${username}\nError: ${message}`;
+    case "markdown":
+      return `@${username}\n${message}`;
+    default:
+      return `@${username}\n${message}`;
+  }
 }

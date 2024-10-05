@@ -4,10 +4,11 @@ import path, { dirname } from "path";
 import { config } from "dotenv";
 import { fileURLToPath } from "url";
 import ngrok from "ngrok";
-import { botSessionMiddleware } from "./middleware/middleware.js";
+import { botCheckSessionMiddleware, botSessionMiddleware } from "./middleware/middleware.js";
 import { bot } from "./botController/bot.js";
 import { addBotCommands } from "./botController/botCommands.js";
-
+import cron from "node-cron";
+import prisma from "./prisma-client/prisma.js";
 config();
 
 // Setup __dirname equivalent in ES module scope
@@ -22,8 +23,8 @@ const port = process.env.PORT || 3000;
 expressApp.use(express.static("static"));
 expressApp.use(express.json());
 
-
 bot.use(botSessionMiddleware);
+bot.use(botCheckSessionMiddleware);
 
 // Start ngrok and set the webhook
 await (async function () {
@@ -69,5 +70,20 @@ await (async function () {
   }
 })();
 
+addBotCommands(bot);
 
-addBotCommands(bot)
+cron.schedule(
+  "59 23 * * 0",
+  async () => {
+    console.log("Set all vehicles as undriven");
+    await prisma.vehicles.setAllVehiclesUndriven();
+  },
+  {
+    scheduled: true,
+    timezone: "Asia/Singapore", // You can change the timezone if needed
+  }
+);
+
+console.log("Added bot commands and scheduled updating all vehicles as undriven");
+
+

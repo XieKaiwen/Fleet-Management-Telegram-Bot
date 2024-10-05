@@ -58,6 +58,27 @@ const extendedPrismaClient =prismaClient.$extends({
           },
         });
       },
+
+      async updateDrivenVehicles(vehicles){
+        await prismaClient.vehicles.updateMany({
+          where: {
+            vec_num: {
+              in: vehicles,
+            },
+          },  
+          data: {
+            driven: true
+          },
+        })
+      },
+
+      async setAllVehiclesUndriven(){
+        await prismaClient.vehicles.updateMany({
+          data: {
+            driven: false
+          },
+        })
+      }
     },
 
     chargers: {

@@ -1,8 +1,10 @@
 import { format } from "date-fns";
 import { defParams } from "../lib/constants.js";
-import prisma from "../prismaClient/prisma.js";
+import prisma from "../prisma-client/prisma.js";
 import {
-    formatChargerLine,
+  constructBotMessage,
+  formatChargerLine,
+  formatDate,
   formatServStateSection,
   formatVehicleLine,
   formatWPTSections,
@@ -12,14 +14,15 @@ import {
 import {
   DataFetchingError,
   DataMutationError,
+  handleError,
   InvalidLinesError,
 } from "../lib/utils/errorMessageConstructors.js";
 import {
   constructMultilineInstructions,
-  INVALID_ITEM_ERROR_REMINDER_ALL_SVC,
   INVALID_ITEM_ERROR_REMINDER_ALL_VOR,
   MULTILINE_INVALID_INPUT_REMINDER,
   ONLY_VOR_REMINDER,
+  UPDATE_DRIVEN_INSTRUCTIONS,
   VOR_TO_SVC_INSTRUCTIONS,
 } from "./instructions.js";
 import {
@@ -30,7 +33,11 @@ import {
   validateRowsWithItemVORReasonDate,
 } from "../lib/utils/inputHandlerUtils.js";
 import { SERV_STATE_EDIT_SUCCESS } from "../lib/utils/successMessages.js";
-import { getAllChargers, getAllVehicles } from "../lib/utils/retrieveDataUtils.js";
+import {
+  getAllChargers,
+  getAllVehicles,
+} from "../lib/utils/retrieveDataUtils.js";
+import { restartCtxSession } from "../middleware/middleware.js";
 
 const { vehicle_count, chargerTypes, vehicleTypes } = defParams;
 
@@ -63,9 +70,7 @@ export async function sendServState(ctx) {
           vehicle_vor_reason: vehicle.vehicle_vor_reason.map((vorReason) => {
             return {
               ...vorReason,
-              date_reported: vorReason.date_reported
-                ? format(new Date(vorReason.date_reported), "dd-MM-yyyy")
-                : null,
+              date_reported: formatDate(vorReason.date_reported),
             };
           }),
         };
@@ -122,12 +127,10 @@ export async function sendServState(ctx) {
 
       return botSendMessage(ctx, serv_state_msg);
     } catch (error) {
-      console.error(error);
-      return botSendMessage(ctx, DataFetchingError("VOR Chargers"));
+      handleError(ctx, error, DataFetchingError("VOR Chargers"));
     }
   } catch (error) {
-    console.log("Error: ", error);
-    return botSendMessage(ctx, DataFetchingError("VOR vehicles"));
+    handleError(ctx, error, DataFetchingError("VOR Vehicles"));
   }
 }
 
@@ -137,13 +140,13 @@ export async function sendWPT(ctx) {
 
     const currentDate = getCurrentDateInSingapore();
 
-    let WPTMessage = `MHE & OPS Keypress Check: Done (${currentDate})\n\nLogbook Check: Done (${currentDate})\n\nPlatforms yet to be used this week:\n`;
+    let WPTMessage = `MHE & OPS Keypress Check: Done (${currentDate})\n\nLogbook Check: Done (${currentDate})\n`;
 
     const notDrivenVehiclesGroupedByType = groupItemsByType(
       notDrivenVehicles,
       vehicleTypes
     );
-    // console.log(notDrivenVehiclesGroupedByType);
+    console.log(notDrivenVehiclesGroupedByType);
 
     WPTMessage += formatWPTSections(
       "Platforms yet to be used this week",
@@ -169,22 +172,18 @@ export async function sendWPT(ctx) {
 
       return botSendMessage(ctx, WPTMessage);
     } catch (error) {
-      console.error(error);
-      return botSendMessage(ctx, DataFetchingError("VOR Vehicles"));
+      handleError(ctx, error, DataFetchingError("VOR Vehicles"));
     }
   } catch (error) {
-    console.error(error);
-    return botSendMessage(ctx, DataFetchingError("Vehicles not driven"));
+    handleError(ctx, error, DataFetchingError("Vehicles not driven"));
   }
 }
 
 export async function botSendMessage(ctx, message, type = "normal") {
-  if (type === "normal") {
-    await ctx.reply(`@${ctx.from.username}\n${message}`);
-  } else if (type === "error") {
-    await ctx.reply(`@${ctx.from.username}\nError: ${message}`);
-  } else if (type === "markdown") {
-    await ctx.replyWithMarkdown(`@${ctx.from.username}\n${message}`);
+  try {
+    await ctx.reply(constructBotMessage(ctx.from.username, message, type));
+  } catch (e) {
+    console.error(e);
   }
 }
 
@@ -287,18 +286,11 @@ export async function editServStateStep2(ctx, text) {
           );
           return sendServState(ctx);
         } catch (error) {
-          console.error("Error: ", error);
-          return botSendMessage(ctx, DataMutationError("Serv State"), "error");
+          handleError(ctx, error, DataMutationError("Serv State"));
         }
       } catch (error) {
-        console.log("Error: ", error);
-        return botSendMessage(
-          ctx,
-          DataFetchingError("vehicles/chargers"),
-          "error"
-        );
+        handleError(ctx, error, DataFetchingError("vehicles/chargers"));
       }
-      break;
     }
     case "2":
       // for Option 2 to shift from SVC to VOR
@@ -312,7 +304,7 @@ export async function editServStateStep2(ctx, text) {
         const separatedLines = text.split("\n");
         console.log("Separated lines: ", separatedLines);
         const { invalidLines, allItemsNumbers } =
-          validateRowsWithItemVORReasonDate(separatedLines, false, true);
+          await validateRowsWithItemVORReasonDate(separatedLines, false, true);
 
         if (invalidLines.length > 0) {
           await botSendMessage(ctx, InvalidLinesError(invalidLines));
@@ -323,8 +315,9 @@ export async function editServStateStep2(ctx, text) {
           );
         }
 
-        const { vehiclesToMove, chargersToMove } =
+        const { vehicles: vehiclesToMove, chargers: chargersToMove } =
           parseRowsWithItemVORReasonDate(separatedLines, allItemsNumbers);
+
         try {
           await prisma.$transaction(async (prisma) => {
             const vehicleReasonInserts = [];
@@ -420,15 +413,14 @@ export async function editServStateStep2(ctx, text) {
           // console.log("After restart: ", ctx.session);
           return sendServState(ctx);
         } catch (error) {
-          console.error("Error: ", error);
-          return botSendMessage(
+          handleError(
             ctx,
-            DataMutationError("moving vehicles/chargers from SVC to VOR")
+            error,
+            DataMutationError("moving vehicles/chargers")
           );
         }
       } catch (error) {
-        console.error("Error: ", error);
-        return botSendMessage(ctx, DataFetchingError("vehicle/chargers"));
+        handleError(ctx, error, DataFetchingError("vehicles/chargers"));
       }
 
     case "3":
@@ -437,18 +429,21 @@ export async function editServStateStep2(ctx, text) {
         ctx.session.input[ctx.session.cur_step] = text;
         ctx.session.cur_step++;
         if (text === "1") {
-          await botSendMessage(ctx, ONLY_VOR_REMINDER);
-          return botSendMessage(ctx, constructMultilineInstructions(
-            "Please enter the vehicles or chargers you wish update VOR messages for, with their VOR messages."
-          ));
+          await botSendMessage(
+            ctx,
+            constructMultilineInstructions(
+              "Please enter the vehicles or chargers you wish update VOR messages for, with their VOR messages."
+            )
+          );
+          return botSendMessage(ctx, ONLY_VOR_REMINDER);
         } else if (text === "2") {
-          await botSendMessage(ctx, ONLY_VOR_REMINDER);
-          return botSendMessage(
+          await botSendMessage(
             ctx,
             constructMultilineInstructions(
               "Please enter the vehicles or chargers you wish append VOR messages to, with their VOR messages."
             )
           );
+          return botSendMessage(ctx, ONLY_VOR_REMINDER);
         }
       } else {
         return botSendMessage(
@@ -492,6 +487,8 @@ export async function editServStateStep3(ctx, text) {
               splitLines,
               allItemsNumbers
             );
+            console.log(chargers);
+
             try {
               await prisma.$transaction(async (prisma) => {
                 // Get IDs of vehicles and chargers that exist in the database
@@ -524,40 +521,45 @@ export async function editServStateStep3(ctx, text) {
                 });
 
                 // Insert new VOR reasons for vehicles
-                for (const [
-                  vec_num,
-                  { dateReported, vorReason },
-                ] of Object.entries(vehicles)) {
+                for (const [vec_num, vorReasonList] of Object.entries(
+                  vehicles
+                )) {
+                  console.log(vehicles);
+
                   const vehicle = await prisma.vehicles.findUnique({
                     where: { vec_num },
                   });
                   if (vehicle) {
-                    await prisma.vehicle_vor_reason.create({
-                      data: {
-                        vec_id: vehicle.id,
-                        date_reported: new Date(dateReported).toISOString(),
-                        vor_reason: vorReason,
-                      },
-                    });
+                    for (const { dateReported, vorReason } of vorReasonList) {
+                      await prisma.vehicle_vor_reason.create({
+                        data: {
+                          vec_id: vehicle.id,
+                          date_reported: new Date(dateReported).toISOString(),
+                          vor_reason: vorReason,
+                        },
+                      });
+                    }
                   }
                 }
 
                 // Insert new VOR reasons for chargers
-                for (const [
-                  charger_num,
-                  { dateReported, vorReason },
-                ] of Object.entries(chargers)) {
+                for (const [charger_num, vorReasonList] of Object.entries(
+                  chargers
+                )) {
                   const charger = await prisma.chargers.findUnique({
                     where: { charger_num },
                   });
                   if (charger) {
-                    await prisma.charger_vor_reason.create({
-                      data: {
-                        charger_id: charger.id,
-                        date_reported: new Date(dateReported).toISOString(),
-                        vor_reason: vorReason,
-                      },
-                    });
+                    console.log(charger);
+                    for (const { dateReported, vorReason } of vorReasonList) {
+                      await prisma.charger_vor_reason.create({
+                        data: {
+                          charger_id: charger.id,
+                          date_reported: new Date(dateReported).toISOString(),
+                          vor_reason: vorReason,
+                        },
+                      });
+                    }
                   }
                 }
               });
@@ -568,20 +570,19 @@ export async function editServStateStep3(ctx, text) {
               );
               return sendServState(ctx);
             } catch (error) {
-              console.error(error);
-              return botSendMessage(
+              handleError(
                 ctx,
+                error,
                 DataMutationError("replacing VOR reasons")
               );
             }
           } catch (error) {
-            console.error(error);
-            return botSendMessage(ctx, DataFetchingError("vehicles/chargers"));
+            handleError(ctx, error, DataFetchingError("vehicles/chargers"));
           }
 
         case "2":
           // Append VOR reason
-          // TODO Append VOR reason (just same format, add the vor_reasons into the tables)
+
           try {
             const splitLines = text.split("\n");
             const { invalidLines, allItemsNumbers } =
@@ -606,6 +607,8 @@ export async function editServStateStep3(ctx, text) {
 
             try {
               await prisma.$transaction(async (prisma) => {
+                // Collect all vehicle queries into a single array
+                const allVehicleQueries = [];
                 for (const [vecNum, vorInfoList] of Object.entries(
                   itemsToAppendFormatted.vehicles
                 )) {
@@ -626,10 +629,13 @@ export async function editServStateStep3(ctx, text) {
                       });
                     }
                   );
-                  await Promise.all(vehicleQueries);
-                  // Insert new vor reasons for vehicles ^
+
+                  // Add these queries to the array
+                  allVehicleQueries.push(...vehicleQueries);
                 }
 
+                // Collect all charger queries into a single array
+                const allChargerQueries = [];
                 for (const [chargerNum, vorInfoList] of Object.entries(
                   itemsToAppendFormatted.chargers
                 )) {
@@ -650,26 +656,30 @@ export async function editServStateStep3(ctx, text) {
                       });
                     }
                   );
-                  await Promise.all(chargerQueries);
-                  // Insert new vor reasons for chargers ^
+
+                  // Add these queries to the array
+                  allChargerQueries.push(...chargerQueries);
                 }
-                restartCtxSession(ctx);
-                await botSendMessage(
-                  ctx,
-                  "Successfully appended VOR reasons! Here is the new serv state..."
-                );
-                return sendServState(ctx);
+
+                // execute all the collected queries at once with Promise.all()
+                await Promise.all([...allVehicleQueries, ...allChargerQueries]);
               });
-            } catch (error) {
-              console.error(error);
-              return botSendMessage(
+
+              restartCtxSession(ctx);
+              await botSendMessage(
                 ctx,
+                "Successfully appended VOR reasons! Here is the new serv state..."
+              );
+              return sendServState(ctx);
+            } catch (error) {
+              handleError(
+                ctx,
+                error,
                 DataMutationError("appending VOR reasons")
               );
             }
           } catch (error) {
-            console.error(error);
-            return botSendMessage(ctx, DataFetchingError("vehicles/chargers"));
+            handleError(ctx, error, DataFetchingError("vehicles/chargers"));
           }
 
           break;
@@ -726,4 +736,39 @@ export async function sendFullList(ctx) {
 
   await botSendMessage(ctx, "Here is the full list of vehicle and chargers...");
   return botSendMessage(ctx, fullVehicleAndChargerMessage);
+}
+
+export async function sendUpdateDrivenVehicleInstructions(ctx) {
+  return botSendMessage(ctx, UPDATE_DRIVEN_INSTRUCTIONS);
+}
+
+export async function updateDrivenVehicles(ctx, text) {
+  try {
+    const splitText = text.split(",").map((item) => item.trim());
+    const { invalidItems, allItemsNumbers } = await validateCommaSeparatedItems(
+      splitText,
+      false,
+      false
+    );
+    if (invalidItems.length > 0) {
+      await botSendMessage(ctx, InvalidLinesError(invalidItems));
+      return botSendMessage(ctx, INVALID_ITEM_ERROR_REMINDER_ALL_VOR);
+    }
+    const { vehicles } = parseCommaSeparatedItems(splitText, allItemsNumbers);
+    try {
+      await prisma.vehicles.updateDrivenVehicles(vehicles);
+
+      restartCtxSession(ctx);
+      await botSendMessage(
+        ctx,
+        "Successfully added driven vehicles! Here is the new WPT list..."
+      );
+      return sendWPT(ctx);
+
+    } catch (error) {
+      handleError(ctx, error, DataMutationError("adding driven vehicles"));
+    }
+  } catch (error) {
+    handleError(ctx, error, DataFetchingError("vehicles/chargers"));
+  }
 }

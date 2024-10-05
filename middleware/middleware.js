@@ -1,3 +1,5 @@
+import { botSendMessage } from "../botController/botCommandFunctions.js";
+
 const sessionStore = {}
 
 export function botSessionMiddleware(ctx, next) {
@@ -30,6 +32,20 @@ export function botSessionMiddleware(ctx, next) {
   console.log("CTX editted message: ", ctx.edited_message?.text);
   // Proceed with the middleware chain
   return next();
+}
+
+export function botCheckSessionMiddleware(ctx, next) {
+  if (ctx.session.state == "idle" || ctx.message?.text.startsWith("/cancel")) {
+    return next();
+  } else {
+    if (ctx.message?.text.startsWith("/") && ctx.session.cur_command) {
+      return botSendMessage(
+        ctx,
+        `Unable to perform ${ctx.message.text}, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel.`
+      );
+    }
+    return next()
+  }
 }
 
 export function restartCtxSession(ctx) {
