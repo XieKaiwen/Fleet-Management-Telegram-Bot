@@ -79,7 +79,7 @@ export function addBotCommands(bot) {
     try {
       await prisma.vehicles.setAllVehiclesUndriven();
       try {
-        return sendWPT(ctx);
+        await sendWPT(ctx);
       } catch (err) {
         handleError(ctx, err, DataFetchingError("fetching WPT list"));
       }

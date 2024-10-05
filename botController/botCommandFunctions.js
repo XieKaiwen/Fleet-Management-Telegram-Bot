@@ -188,7 +188,7 @@ export async function botSendMessage(ctx, message, type = "normal") {
       case "markdown":
         return ctx.replyWithMarkdown(messageToSend);
       default:
-        return `${messageToSend}`;
+        return ctx.reply(`${messageToSend}`);
     }
 
   } catch (e) {
