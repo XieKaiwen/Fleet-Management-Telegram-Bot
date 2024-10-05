@@ -181,7 +181,16 @@ export async function sendWPT(ctx) {
 
 export async function botSendMessage(ctx, message, type = "normal") {
   try {
-    await ctx.reply(constructBotMessage(ctx.from.username, message, type));
+    const messageToSend = constructBotMessage(ctx.from.username, message);
+    switch (type) {
+      case "error":
+        return ctx.reply(messageToSend);
+      case "markdown":
+        return ctx.replyWithMarkdown(messageToSend);
+      default:
+        return `@${username}\n${message}`;
+    }
+
   } catch (e) {
     console.error(e);
   }
@@ -764,7 +773,6 @@ export async function updateDrivenVehicles(ctx, text) {
         "Successfully added driven vehicles! Here is the new WPT list..."
       );
       return sendWPT(ctx);
-
     } catch (error) {
       handleError(ctx, error, DataMutationError("adding driven vehicles"));
     }

@@ -1,4 +1,7 @@
-import { DataFetchingError, handleError } from "../lib/utils/errorMessageConstructors.js";
+import {
+  DataFetchingError,
+  handleError,
+} from "../lib/utils/errorMessageConstructors.js";
 import { restartCtxSession } from "../middleware/middleware.js";
 import prisma from "../prisma-client/prisma.js";
 import {
@@ -12,6 +15,7 @@ import {
   sendWPT,
   updateDrivenVehicles,
 } from "./botCommandFunctions.js";
+import { EDIT_SERV_STATE_HELP, HELP_MESSAGE } from "./instructions.js";
 
 export function addBotCommands(bot) {
   bot.command("start", (ctx) => {
@@ -74,9 +78,9 @@ export function addBotCommands(bot) {
   bot.command("reset_driven", async (ctx) => {
     try {
       await prisma.vehicles.setAllVehiclesUndriven();
-      try{
+      try {
         return sendWPT(ctx);
-      }catch(err){
+      } catch (err) {
         handleError(ctx, err, DataFetchingError("fetching WPT list"));
       }
     } catch (err) {
@@ -84,6 +88,12 @@ export function addBotCommands(bot) {
     }
   });
 
+  bot.command("help", async (ctx) => {
+    return botSendMessage(ctx, HELP_MESSAGE, "markdown");
+  });
+  bot.command("edit_serv_state_help", async (ctx) => {
+    return botSendMessage(ctx, EDIT_SERV_STATE_HELP, "markdown");
+  });
   // Handling undefined commands
   bot.on("message", async (ctx) => {
     if (ctx.message?.text.startsWith("/")) {

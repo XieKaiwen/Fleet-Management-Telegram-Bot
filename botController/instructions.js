@@ -1,3 +1,17 @@
+/**
+ * start - Start the bot and receive a welcome message
+health_check - Check if the bot is running properly
+help - Display a list of available commands
+edit_serv_state_help - Display command guide for /edit_serv_state
+serv_state - View the current service state of vehicles and chargers
+edit_serv_state - Start a session to edit the service state of vehicles or chargers
+send_full_list - Get a complete list of all vehicles and chargers
+show_wpt - Display the current WPT list
+add_driven - Start a session to update vehicles driven for the week
+reset_driven - Reset the driven status of all vehicles for the week
+cancel - Cancel any ongoing command session
+ */
+
 export const ONLY_VOR_REMINDER =
   "REMINDER: This option will only work for vehicles that are already VOR in Serv State";
 
@@ -73,3 +87,130 @@ export const INVALID_ITEM_ERROR_REMINDER_ALL_SVC =
 export function constructMultilineInstructions(title) {
   return title + "\n" + MULTILINE_INPUT_INSTRUCTIONS;
 }
+
+export const HELP_MESSAGE = `
+*Welcome to the FM Helper Bot!*
+
+Here are the commands you can use:
+
+---
+
+🔹 *Basic Commands:*
+- \`/start\`  
+  _Start the bot and receive a welcome message._
+
+- \`/health_check\`  
+  _Check if the bot is running properly._
+
+- \`/help\`  
+  _Display this help message._
+
+---
+
+🔹 *Service State Commands:*
+- \`/serv_state\`  
+  _View the current service state of vehicles and chargers._
+
+- \`/edit_serv_state\`  
+  _Start a session to edit the service state of vehicles or chargers._  
+  _*Options*_
+  1. *Move Vehicle/Charger from VOR to SVC*  
+     _Transfer items to SVC status._
+
+  2. *Move Vehicle/Charger to VOR*  
+     _Transfer items to VOR status with reasons and dates._
+
+  3. *Update VOR Information of Vehicle/Charger*  
+     _Modify existing VOR reasons by replacing or appending._
+
+- \`/send_full_list\`  
+  _Get a complete list of all vehicles and chargers._
+
+---
+
+🔹 *WPT (Weekly Planned Tasks) Commands:*
+- \`/show_wpt\`  
+  _Display the current Weekly Planned Tasks._
+
+- \`/add_driven\`  
+  _Start a session to update the list of vehicles driven for the week._  
+  _*Usage*: Follow the on-screen instructions to add driven vehicles._
+
+- \`/reset_driven\`  
+  _Reset the driven status of all vehicles._  
+  _*Note*: This will mark all vehicles as undriven._
+
+---
+
+🔹 *Utility Commands:*
+- \`/cancel\`  
+  _Cancel any ongoing command session._
+
+---
+
+*💡 Tips:*
+- **Starting a Command Session:** Some commands like \`/edit_serv_state\` and \`/add_driven\` initiate a multi-step process. Follow the prompts carefully to complete these actions.
+- **Canceling a Session:** If you need to stop any ongoing process, simply use the \`/cancel\` command.
+- **Input Formats:** Ensure that your inputs follow the required formats, especially for commands that require specific data entries.
+
+---
+
+For detailed instructions on the \`/edit_serv_state\` command, use the following command:
+
+\`\`\`
+/edit_serv_state_help
+\`\`\`
+
+*For any further assistance, feel free to reach out to 96305601!*
+    `;
+
+export const EDIT_SERV_STATE_HELP = `
+# \`/edit_serv_state\` Command Guide
+
+The /edit_serv_state command allows you to manage the service state of vehicles and chargers through a multi-step interactive process.
+
+**Options**
+
+1. **Move Vehicle/Charger from VOR to SVC**
+   - **Description:** Transfer items from VOR to SVC status.
+   - **Input:** Comma-separated list (e.g., \`46088, 46089, 642-2005L\`)
+
+2. **Move Vehicle/Charger from SVC to VOR**
+   - **Description:** Assign items to VOR status with reasons and dates.
+   - **Input Format:**
+     \`\`\`
+     item_number | VOR_reason | date_reported (DD/MM/YYYY)
+     \`\`\`
+     **Example:**
+     \`\`\`
+     46091 | Maintenance | 01/10/2024
+     642-2005L | Upgrade | 02/10/2024
+     \`\`\`
+
+3. **Update VOR Information of Vehicle/Charger**
+   - **Sub-Options:**
+     - **Replace Entire VOR Reason**
+       - **Description:** Replace existing VOR reasons.
+       - **Input Format:**
+         \`\`\`
+         item_number | new_VOR_reason | new_date_reported (DD/MM/YYYY)
+         \`\`\`
+         **Example:**
+         \`\`\`
+         46091 | Emergency Repair | 03/10/2024
+         642-2005L | Maintenance | 04/10/2024
+         \`\`\`
+     - **Append VOR Reasons**
+       - **Description:** Add new VOR reasons to existing ones.
+       - **Input Format:**
+         \`\`\`
+         item_number | additional_VOR_reason | additional_date_reported (DD/MM/YYYY)
+         \`\`\`
+         **Example:**
+         \`\`\`
+         46092 | Battery Check | 05/10/2024
+         642-2005L | Firmware Patch | 06/10/2024
+         \`\`\`
+
+For more detailed instructions, refer to the \`/edit_serv_state\` command guide.
+`;
