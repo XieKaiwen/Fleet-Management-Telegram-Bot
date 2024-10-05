@@ -22,46 +22,18 @@ export function addBotCommands(bot) {
   });
 
   bot.command("health_check", (ctx) => {
-    // console.log(ctx.from);
-    if (ctx.session.state != "idle") {
-      return botSendMessage(
-        ctx,
-        `Unable to perform health check, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
-      );
-    }
     return botSendMessage(ctx, "Health OK. Bot is up and functional");
   });
 
   bot.command("serv_state", async (ctx) => {
-    if (ctx.session.state != "idle") {
-      return botSendMessage(
-        ctx,
-        `Unable to send serv state, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
-      );
-    }
     return sendServState(ctx);
   });
 
   bot.command("show_wpt", async (ctx) => {
-    if (ctx.session.state != "idle") {
-      return botSendMessage(
-        ctx,
-        `Unable to send WPT list, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
-      );
-    }
     return sendWPT(ctx);
   });
 
   bot.command("edit_serv_state", async (ctx) => {
-    if (
-      ctx.session.state != "idle" &&
-      ctx.session.cur_command !== "edit_serv_state"
-    ) {
-      return botSendMessage(
-        ctx,
-        `Unable to send edit serv state, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
-      );
-    }
     ctx.session.state = "in_command";
     ctx.session.cur_command = "edit_serv_state";
     ctx.session.cur_step = 1;
@@ -76,12 +48,6 @@ export function addBotCommands(bot) {
   });
 
   bot.command("cancel", async (ctx) => {
-    if (ctx.session.state === "idle") {
-      return botSendMessage(
-        ctx,
-        "No existing command sessions. You are free to enter a new command!"
-      );
-    }
     const command = ctx.session.cur_command;
     restartCtxSession(ctx);
     return botSendMessage(
@@ -91,25 +57,10 @@ export function addBotCommands(bot) {
   });
 
   bot.command("send_full_list", async (ctx) => {
-    if (ctx.session.state != "idle") {
-      return botSendMessage(
-        ctx,
-        `Unable to send WPT list, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
-      );
-    }
     return sendFullList(ctx);
   });
 
   bot.command("add_driven", async (ctx) => {
-    if (
-      ctx.session.state != "idle" &&
-      ctx.session.cur_command !== "add_driven"
-    ) {
-      return botSendMessage(
-        ctx,
-        `Unable to send add vehicles to driven list, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
-      );
-    }
     ctx.session.state = "in_command";
     ctx.session.cur_command = "add_driven";
     ctx.session.cur_step = 1;
@@ -121,12 +72,6 @@ export function addBotCommands(bot) {
   });
 
   bot.command("reset_driven", async (ctx) => {
-    if (ctx.session.state != "idle") {
-      return botSendMessage(
-        ctx,
-        `Unable to send add vehicles to driven list, you are still in a command session for /${ctx.session.cur_command}. If you wish to terminate the command, please enter /cancel`
-      );
-    }
     try {
       await prisma.vehicles.setAllVehiclesUndriven();
       try{
