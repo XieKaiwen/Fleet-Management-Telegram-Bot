@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+
 const exampleWithDuplicateVehiclesAndVORReason =
   "Example:\n46086 - Wheel burst - 28/12/2004\n51012 - Low battery - 01/01/2004\n50701 - Cannot start - 12/09/2015";
 
