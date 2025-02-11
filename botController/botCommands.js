@@ -96,7 +96,7 @@ export function addBotCommands(bot) {
   });
   // Handling undefined commands
   bot.on("message", async (ctx) => {
-    if (ctx.message?.text.startsWith("/")) {
+    if (ctx.message?.text?.startsWith("/")) {
       return botSendMessage(
         ctx,
         "Sorry, I didn’t recognize that command. Type /help for a list of available commands."
