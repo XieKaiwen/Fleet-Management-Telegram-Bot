@@ -1,12 +1,12 @@
 {
   "dependencies": {
+    "@ngrok/ngrok": "^1.5.2",
     "@prisma/client": "^5.20.0",
     "axios": "^1.7.2",
     "date-fns": "^3.6.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "fs": "^0.0.1-security",
-    "ngrok": "^5.0.0-beta.2",
     "node-cron": "^3.0.3",
     "pg": "^8.12.0",
     "telegraf": "^4.16.3"
@@ -19,7 +19,13 @@
     "start": "node index.js",
     "watch": "nodemon index.js",
     "DB-clear": "node prisma/clearDB.js",
-    "DB-reset": "node prisma/clearDB.js && node prisma/seed.js"
+    "DB-reset": "node prisma/clearDB.js && node prisma/seed.js",
+    "docker:dev": "docker-compose -p fm-telebot-dev -f docker-compose.yml -f docker-compose.dev.yml up",
+    "docker:dev:build": "docker-compose -p fm-telebot-dev -f docker-compose.yml -f docker-compose.dev.yml up --build",
+    "docker:dev:down": "docker-compose -p fm-telebot-dev -f docker-compose.yml -f docker-compose.dev.yml down",
+    "docker:prod": "docker-compose -p fm-telebot-prod up",
+    "docker:prod:build": "docker-compose -p fm-telebot-prod up --build",
+    "docker:prod:down": "docker-compose -p fm-telebot-prod down"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -31,6 +37,7 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^20.14.11",
+    "nodemon": "^3.1.0",
     "prisma": "^5.20.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.3"

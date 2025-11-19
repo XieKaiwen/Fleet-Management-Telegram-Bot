@@ -1,0 +1,40 @@
+version: '3.8'
+
+# Development override configuration
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  postgres:
+    env_file:
+      - .env.local
+    # Expose PostgreSQL port for development/debugging
+    ports:
+      - "5432:5432"
+    environment:
+      # Enable query logging in development
+      POSTGRES_LOG_STATEMENT: all
+      # Override to use .env.local values
+      POSTGRES_DB:
+      POSTGRES_USER:
+      POSTGRES_PASSWORD:
+
+  bot:
+    env_file:
+      - .env.local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder  # Use builder stage for development
+    volumes:
+      # Mount source code for hot reloading
+      - .:/app
+      - /app/node_modules  # Preserve node_modules from container
+      - /app/.prisma       # Preserve generated Prisma client
+    command: >
+      sh -c "
+        npx prisma generate &&
+        npx prisma migrate dev --skip-seed &&
+        echo 'Checking if database needs seeding...' &&
+        node prisma/seed-if-empty.js &&
+        npm run watch
+      "
